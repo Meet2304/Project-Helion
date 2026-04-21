@@ -1,5 +1,5 @@
 <p align='center'>
-<img src='https://github.com/Meet2304/Project-Helion/blob/main/Project_Helion_Header Image_v0.1.png'>
+<img src='https://github.com/Meet2304/Project-Helion/blob/main/Project%20Helion_Header%20Image_v0.1.png'>
 </p>
 
 <h1 align="center">Project Helion</h1>
