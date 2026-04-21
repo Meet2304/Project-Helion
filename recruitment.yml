@@ -1,0 +1,106 @@
+name: recruitment
+version: 0.1.0
+patches:
+  mfe-env-production: |
+    ENABLE_TIMED_EXAMS=true
+
+  openedx-lms-common-settings: |
+    # IDENTITY
+    PLATFORM_NAME = "Serin Helion"
+
+    # Trust Bridge" - CORS settings for local development
+    CORS_ORIGIN_ALLOW_ALL = True
+    CORS_ALLOW_CREDENTIALS = True
+
+    # Redirect Logic between services
+    LOGIN_REDIRECT_WHITELIST = ["local.openedx.io", "studio.local.openedx.io"]
+
+    # CSRF settings for local development
+    CSRF_TRUSTED_ORIGINS = [
+        "http://local.openedx.io", 
+        "http://studio.local.openedx.io", 
+        "http://apps.local.openedx.io"
+    ]
+
+    # ---- SECURITY SETTINGS ----
+    # This tells the MFEs (like the Header) to hide the Register button
+    REGISTRATION_EXTRA_FIELDS = {"honor_code": "hidden"}
+    ALLOW_PUBLIC_ACCOUNT_CREATION = False
+    # Disables the public 'Register' button
+    FEATURES['ALLOW_PUBLIC_ACCOUNT_CREATION'] = False
+
+    # ---- GLOBAL PRIVACY SETTINGS ----
+    # 1. Hide the catalog from public
+    COURSE_CATALOG_VISIBILITY_PERMISSION = 'see_in_catalog'
+
+    # 2. Disable 'About' pages to prevent Google from indexing test pages
+    FEATURES['ENABLE_MKTG_SITE'] = False
+
+    # 3. "Invitation Only" registration flow to prevent random users from signing up
+    FEATURES['ALLOW_ENROLLMENT_BEFORE_START_DATE'] = False
+
+    # 4. Force the catalog to be empty for non-logged-in users
+    FEATURES['COURSES_ARE_RECRUITMENT_TESTS'] = True
+
+    # 5. Prevent the "Explore Courses" button from finding anything
+    COURSE_CATALOG_VISIBILITY_PERMISSION = 'see_in_catalog'
+
+    # 6. Hide the "About" pages entirely
+    COURSE_ABOUT_VISIBILITY_PERMISSION = 'see_about_page'
+
+    # 7. Hide the "Courses" tab for logged-out users entirely
+    FEATURES['ENABLE_COURSE_DISCOVERY'] = False
+
+    # 8. Makes the "About" page inaccessible to the public by default
+    DEFAULT_COURSE_ABOUT_VISIBILITY = 'private'
+
+    # ---- EXAM ASSESSMENT SETTINGS ----
+    # 1. THE MASTER SWITCH - This unlocks the UI radio buttons
+    ENABLE_SPECIAL_EXAMS = True
+    FEATURES['ENABLE_SPECIAL_EXAMS'] = True
+
+    # 2. Enable the features within the engine
+    FEATURES['ENABLE_TIMED_EXAMS'] = True
+
+    # 3. Configuration dictionary
+    PROCTORING_BACKEND_PROVIDER = {
+      'class': 'edx_proctoring.backends.null.NullBackendProvider',
+      'options': {},
+    }
+    
+    PROCTORING_SETTINGS = {
+      'ALLOW_TIMED_EXAMS': True,
+      'ALLOW_PROCTORED_EXAMS': False,
+      'MUST_BE_PROCTORED_DEFAULT': False,
+    }
+
+    # 4. Hide the calculator by default unliess explicitly enabled for a course
+    FEATURES['ENABLE_CALCULATOR_BLOCK'] = False
+
+    # 5. Ensure that timer doesn't reset if a student refreshes the page during a timed exam
+    FEATURES['ENABLE_PAUSE_WIDGET'] = False
+
+  openedx-cms-common-settings: |
+    # ---- EXAM ASSESSMENT SETTINGS ----
+    # 1. Enable special exams in CMS
+    ENABLE_SPECIAL_EXAMS = True
+    FEATURES['ENABLE_SPECIAL_EXAMS'] = True
+    FEATURES['ENABLE_TIMED_EXAMS'] = True
+
+    PROCTORING_BACKEND_PROVIDER = {
+      'class': 'edx_proctoring.backends.null.NullBackendProvider',
+      'options': {},
+    }
+
+    PROCTORING_SETTINGS = {
+      'ALLOW_TIMED_EXAMS': True,
+      'ALLOW_PROCTORED_EXAMS': False,
+      'MUST_BE_PROCTORED_DEFAULT': False,
+    }
+
+  openedx-auth-common-settings: |
+    # Ensures the Authentication MFE also knows registration is closed
+    ALLOW_PUBLIC_ACCOUNT_CREATION = False
+    
+    # Enable Special Exams
+    ENABLE_SPECIAL_EXAMS = True
