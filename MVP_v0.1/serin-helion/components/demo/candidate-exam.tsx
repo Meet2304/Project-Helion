@@ -15,10 +15,7 @@ import {
   DEMO_EXAM_TITLE,
   HEARTBEAT_INTERVAL_MS,
 } from "@/lib/demo-config"
-import { formatTimestamp, getStatusTone } from "@/lib/demo-helpers"
 import { type ExamSession, type SessionEventInput } from "@/lib/demo-types"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -363,6 +360,24 @@ export function CandidateExam({
           type: "shortcut_tab_switch_attempt",
           timestamp: Date.now(),
         }
+        void logSessionEvent({
+          type: "shortcut_tab_switch_attempt",
+          severity: "critical",
+          message: "Likely Windows tab or app switch shortcut attempted during the exam.",
+        })
+        return
+      }
+
+      if (event.metaKey && event.key === "Tab") {
+        lastShortcutEventRef.current = {
+          type: "shortcut_window_switch_attempt",
+          timestamp: Date.now(),
+        }
+        void logSessionEvent({
+          type: "shortcut_window_switch_attempt",
+          severity: "critical",
+          message: "Likely macOS app switch shortcut attempted during the exam.",
+        })
         return
       }
 
@@ -676,4 +691,3 @@ export function CandidateExam({
     </div>
   )
 }
-

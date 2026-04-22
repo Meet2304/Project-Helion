@@ -2,12 +2,11 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { Activity, Clock3, Search, ShieldAlert, Lock, Unlock } from "lucide-react"
+import { Lock, Search, Unlock } from "lucide-react"
 
 import { DEMO_ADMIN_PASSCODE } from "@/lib/demo-config"
 import { formatRelativeSeconds, formatTimestamp, getStatusTone } from "@/lib/demo-helpers"
 import { type AdminSnapshot } from "@/lib/demo-types"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -90,6 +89,17 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
 
     setIsUnlocked(true)
     setAccessError(null)
+  }
+
+  function cacheSessionForDetail(session: AdminSnapshot["sessions"][number]) {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    window.sessionStorage.setItem(
+      `serin-admin-session:${session.id}`,
+      JSON.stringify(session)
+    )
   }
 
   if (!isUnlocked) {
@@ -198,6 +208,7 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
                       <TableCell className="pl-6 py-4">
                         <Link
                           href={`/admin/sessions/${session.id}`}
+                          onClick={() => cacheSessionForDetail(session)}
                           className="flex flex-col gap-1"
                         >
                           <span className="font-medium text-slate-900 group-hover:text-primary transition-colors">

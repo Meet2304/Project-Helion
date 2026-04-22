@@ -23,25 +23,95 @@ import {
 } from "@/components/ui/table"
 
 type AdminSessionDetailProps = {
-  initialSession: ExamSession
+  sessionId: string
+  initialSession: ExamSession | null
 }
 
 export function AdminSessionDetail({
+  sessionId,
   initialSession,
 }: AdminSessionDetailProps) {
   const [session, setSession] = useState(initialSession)
+  const [notFound, setNotFound] = useState(false)
+  const cachedSession = useMemo(() => {
+    if (typeof window === "undefined") {
+      return null
+    }
+
+    const cached = window.sessionStorage.getItem(
+      `serin-admin-session:${sessionId}`
+    )
+
+    if (!cached) {
+      return null
+    }
+
+    try {
+      return JSON.parse(cached) as ExamSession
+    } catch {
+      window.sessionStorage.removeItem(`serin-admin-session:${sessionId}`)
+      return null
+    }
+  }, [sessionId])
+
+  const resolvedSession = session ?? cachedSession
 
   useEffect(() => {
+    let cancelled = false
+
+    async function loadSession() {
+      try {
+        const response = await fetch(`/api/admin/sessions/${sessionId}`, {
+          cache: "no-store",
+        })
+
+        if (!response.ok) {
+          if (response.status === 404 && !resolvedSession && !cancelled) {
+            setNotFound(true)
+          }
+          return
+        }
+
+        const payload = (await response.json()) as { session: ExamSession }
+
+        if (!cancelled) {
+          setSession(payload.session)
+          setNotFound(false)
+
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem(
+              `serin-admin-session:${sessionId}`,
+              JSON.stringify(payload.session)
+            )
+          }
+        }
+      } catch {
+        if (!resolvedSession && !cancelled) {
+          setNotFound(true)
+        }
+      }
+    }
+
+    void loadSession()
+
     const eventSource = new EventSource("/api/admin/stream")
 
     eventSource.onmessage = (event) => {
       const snapshot = JSON.parse(event.data) as AdminSnapshot
       const nextSession = snapshot.sessions.find(
-        (candidateSession) => candidateSession.id === initialSession.id
+        (candidateSession) => candidateSession.id === sessionId
       )
 
       if (nextSession) {
         setSession(nextSession)
+        setNotFound(false)
+
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(
+            `serin-admin-session:${sessionId}`,
+            JSON.stringify(nextSession)
+          )
+        }
       }
     }
 
@@ -50,24 +120,63 @@ export function AdminSessionDetail({
     }
 
     return () => {
+      cancelled = true
       eventSource.close()
     }
-  }, [initialSession.id])
+  }, [resolvedSession, sessionId])
 
   const facts = useMemo(
-    () => [
-      ["Candidate", session.candidateName],
-      ["Email or ID", session.candidateEmailOrId],
-      ["Status", session.status.replaceAll("_", " ")],
-      ["Last heartbeat", formatRelativeSeconds(session.lastHeartbeatAt)],
-      ["Submitted at", formatTimestamp(session.submittedAt)],
-      ["Browser exited at", formatTimestamp(session.browserExitedAt)],
-      ["Violations", String(session.violationCount)],
-      ["Fullscreen", session.isFullscreen ? "Locked" : "Exited"],
-      ["Visibility", session.isVisible ? "Visible" : "Hidden"],
-    ],
-    [session]
+    () =>
+      resolvedSession
+        ? [
+            ["Candidate", resolvedSession.candidateName],
+            ["Email or ID", resolvedSession.candidateEmailOrId],
+            ["Status", resolvedSession.status.replaceAll("_", " ")],
+            ["Last heartbeat", formatRelativeSeconds(resolvedSession.lastHeartbeatAt)],
+            ["Submitted at", formatTimestamp(resolvedSession.submittedAt)],
+            ["Browser exited at", formatTimestamp(resolvedSession.browserExitedAt)],
+            ["Violations", String(resolvedSession.violationCount)],
+            ["Fullscreen", resolvedSession.isFullscreen ? "Locked" : "Exited"],
+            ["Visibility", resolvedSession.isVisible ? "Visible" : "Hidden"],
+          ]
+        : [],
+    [resolvedSession]
   )
+
+  if (!resolvedSession && notFound) {
+    return (
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6">
+        <section className="rounded-[2rem] border border-primary/10 bg-white/92 p-6 shadow-sm">
+          <Button asChild variant="ghost" className="h-auto w-fit px-0 text-primary hover:bg-transparent">
+            <Link href="/admin">
+              <ArrowLeft className="size-4" />
+              Back to sessions
+            </Link>
+          </Button>
+          <div className="mt-6 space-y-2">
+            <h1 className="font-heading text-3xl font-semibold tracking-tight text-slate-950">
+              Session not found
+            </h1>
+            <p className="text-sm text-slate-600">
+              This demo keeps sessions in memory, so the detail view can disappear
+              after a server reload. Open the session again from the admin dashboard
+              after starting a fresh candidate session.
+            </p>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  if (!resolvedSession) {
+    return (
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6">
+        <section className="rounded-[2rem] border border-primary/10 bg-white/92 p-6 shadow-sm">
+          <p className="text-sm text-slate-600">Loading session details...</p>
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6">
@@ -84,14 +193,14 @@ export function AdminSessionDetail({
               Session detail
             </Badge>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-slate-950">
-              {session.candidateName}
+              {resolvedSession.candidateName}
             </h1>
             <p className="text-sm text-slate-600">
               Session-specific monitoring timeline and current exam state.
             </p>
           </div>
-          <Badge variant={getStatusTone(session.status)}>
-            {session.status.replaceAll("_", " ")}
+          <Badge variant={getStatusTone(resolvedSession.status)}>
+            {resolvedSession.status.replaceAll("_", " ")}
           </Badge>
         </div>
       </section>
@@ -129,8 +238,8 @@ export function AdminSessionDetail({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {session.events.length > 0 ? (
-              session.events.map((event) => (
+            {resolvedSession.events.length > 0 ? (
+              resolvedSession.events.map((event) => (
                 <TableRow key={event.id}>
                   <TableCell className="whitespace-nowrap text-slate-600">
                     {formatTimestamp(event.timestamp)}

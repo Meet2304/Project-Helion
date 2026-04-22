@@ -1,5 +1,3 @@
-import { notFound } from "next/navigation"
-
 import { AdminSessionDetail } from "@/components/demo/admin-session-detail"
 import { getSession } from "@/lib/demo-store"
 
@@ -13,9 +11,5 @@ export default async function AdminSessionPage({
   const { id } = await params
   const session = getSession(id)
 
-  if (!session) {
-    notFound()
-  }
-
-  return <AdminSessionDetail initialSession={session} />
+  return <AdminSessionDetail sessionId={id} initialSession={session} />
 }
