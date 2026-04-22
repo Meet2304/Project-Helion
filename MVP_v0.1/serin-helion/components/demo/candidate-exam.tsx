@@ -451,10 +451,6 @@ export function CandidateExam({
 
       setSecondsRemaining(getInitialSecondsRemaining())
       syncSession(payload.session)
-
-      if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen?.()
-      }
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -638,11 +634,11 @@ export function CandidateExam({
               <dl className="space-y-4 text-sm">
                 <div>
                   <dt className="text-xs text-slate-400 uppercase tracking-wider mb-1">Subject</dt>
-                  <dd className="font-medium text-slate-900">{candidateName || "—"}</dd>
+                  <dd className="font-medium text-slate-900">{candidateName || "-"}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-slate-400 uppercase tracking-wider mb-1">Identifier</dt>
-                  <dd className="font-mono text-slate-700">{candidateEmailOrId || "—"}</dd>
+                  <dd className="font-mono text-slate-700">{candidateEmailOrId || "-"}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-slate-400 uppercase tracking-wider mb-1">Environment</dt>

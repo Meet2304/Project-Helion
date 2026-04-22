@@ -213,8 +213,10 @@ export function AdminSessionDetail({
           <TableBody>
             {facts.map(([label, value]) => (
               <TableRow key={label}>
-                <TableHead className="w-56">{label}</TableHead>
-                <TableCell>{value}</TableCell>
+                <TableCell className="w-56 bg-slate-50 text-sm font-semibold text-slate-800">
+                  {label}
+                </TableCell>
+                <TableCell className="text-sm text-slate-700">{value}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -249,10 +251,10 @@ export function AdminSessionDetail({
                       {event.severity}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-xs uppercase tracking-wide text-slate-500">
+                  <TableCell className="text-xs font-medium uppercase tracking-wide text-slate-600">
                     {event.type.replaceAll("_", " ")}
                   </TableCell>
-                  <TableCell className="text-slate-700">{event.message}</TableCell>
+                  <TableCell className="text-sm text-slate-800">{event.message}</TableCell>
                 </TableRow>
               ))
             ) : (
