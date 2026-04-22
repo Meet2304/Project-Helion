@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Activity, ShieldAlert, Terminal } from "lucide-react"
 
 import {
   formatRelativeSeconds,
@@ -33,28 +33,10 @@ export function AdminSessionDetail({
 }: AdminSessionDetailProps) {
   const [session, setSession] = useState(initialSession)
   const [notFound, setNotFound] = useState(false)
-  const cachedSession = useMemo(() => {
-    if (typeof window === "undefined") {
-      return null
-    }
-
-    const cached = window.sessionStorage.getItem(
-      `serin-admin-session:${sessionId}`
-    )
-
-    if (!cached) {
-      return null
-    }
-
-    try {
-      return JSON.parse(cached) as ExamSession
-    } catch {
-      window.sessionStorage.removeItem(`serin-admin-session:${sessionId}`)
-      return null
-    }
-  }, [sessionId])
-
-  const resolvedSession = session ?? cachedSession
+  
+  // Need to read cache conditionally to avoid hydration mismatch, but it's simpler to just let useEffect handle the fetch.
+  // We'll trust initialSession if present, else fallback to fetch.
+  const resolvedSession = session
 
   useEffect(() => {
     let cancelled = false
@@ -77,13 +59,6 @@ export function AdminSessionDetail({
         if (!cancelled) {
           setSession(payload.session)
           setNotFound(false)
-
-          if (typeof window !== "undefined") {
-            window.sessionStorage.setItem(
-              `serin-admin-session:${sessionId}`,
-              JSON.stringify(payload.session)
-            )
-          }
         }
       } catch {
         if (!resolvedSession && !cancelled) {
@@ -92,7 +67,9 @@ export function AdminSessionDetail({
       }
     }
 
-    void loadSession()
+    if (!initialSession) {
+       void loadSession()
+    }
 
     const eventSource = new EventSource("/api/admin/stream")
 
@@ -105,13 +82,6 @@ export function AdminSessionDetail({
       if (nextSession) {
         setSession(nextSession)
         setNotFound(false)
-
-        if (typeof window !== "undefined") {
-          window.sessionStorage.setItem(
-            `serin-admin-session:${sessionId}`,
-            JSON.stringify(nextSession)
-          )
-        }
       }
     }
 
@@ -123,7 +93,7 @@ export function AdminSessionDetail({
       cancelled = true
       eventSource.close()
     }
-  }, [resolvedSession, sessionId])
+  }, [resolvedSession, sessionId, initialSession])
 
   const facts = useMemo(
     () =>
@@ -145,128 +115,155 @@ export function AdminSessionDetail({
 
   if (!resolvedSession && notFound) {
     return (
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6">
-        <section className="rounded-[2rem] border border-primary/10 bg-white/92 p-6 shadow-sm">
-          <Button asChild variant="ghost" className="h-auto w-fit px-0 text-primary hover:bg-transparent">
-            <Link href="/admin">
-              <ArrowLeft className="size-4" />
-              Back to sessions
-            </Link>
-          </Button>
-          <div className="mt-6 space-y-2">
-            <h1 className="font-heading text-3xl font-semibold tracking-tight text-slate-950">
-              Session not found
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white border border-slate-200 p-8 sm:p-12 space-y-6 text-center">
+           <ShieldAlert className="size-10 text-slate-300 mx-auto" strokeWidth={1.5} />
+           <div className="space-y-2">
+            <h1 className="text-2xl font-light tracking-tight text-slate-900">
+              Session Not Found
             </h1>
-            <p className="text-sm text-slate-600">
-              This demo keeps sessions in memory, so the detail view can disappear
-              after a server reload. Open the session again from the admin dashboard
-              after starting a fresh candidate session.
+            <p className="text-sm font-light text-slate-500 leading-relaxed">
+              This demo keeps sessions in memory. Open a session from the admin dashboard after starting a fresh candidate session.
             </p>
           </div>
-        </section>
+          <div className="pt-4">
+             <Button asChild variant="outline" className="w-full rounded-none h-12 uppercase tracking-widest text-xs font-medium border-slate-200 hover:bg-slate-50">
+              <Link href="/admin">
+                <ArrowLeft className="mr-2 size-4" />
+                Return to Monitor
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
     )
   }
 
   if (!resolvedSession) {
     return (
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6">
-        <section className="rounded-[2rem] border border-primary/10 bg-white/92 p-6 shadow-sm">
-          <p className="text-sm text-slate-600">Loading session details...</p>
-        </section>
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-4 text-slate-400">
+           <Activity className="size-6 animate-pulse" />
+           <p className="text-xs uppercase tracking-widest font-medium">Synchronizing Data...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <section className="rounded-[2rem] border border-primary/10 bg-white/92 p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-2">
-            <Button asChild variant="ghost" className="h-auto px-0 text-primary hover:bg-transparent">
+    <div className="min-h-screen bg-slate-50 pb-20">
+      
+      <header className="bg-white border-b border-slate-200 px-6 py-8 sm:px-12 lg:py-12">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8">
+             <Button asChild variant="ghost" className="h-auto px-0 text-slate-500 hover:text-slate-900 hover:bg-transparent uppercase tracking-widest text-xs font-medium transition-colors">
               <Link href="/admin">
-                <ArrowLeft className="size-4" />
-                Back to sessions
+                <ArrowLeft className="mr-2 size-4" />
+                Back to Session Overview
               </Link>
             </Button>
-            <Badge variant="outline" className="border-primary/15 bg-primary/5 text-primary">
-              Session detail
-            </Badge>
-            <h1 className="font-heading text-3xl font-semibold tracking-tight text-slate-950">
-              {resolvedSession.candidateName}
-            </h1>
-            <p className="text-sm text-slate-600">
-              Session-specific monitoring timeline and current exam state.
-            </p>
           </div>
-          <Badge variant={getStatusTone(resolvedSession.status)}>
-            {resolvedSession.status.replaceAll("_", " ")}
-          </Badge>
-        </div>
-      </section>
 
-      <section className="rounded-[1.75rem] border border-primary/10 bg-white/94 p-4 shadow-sm">
-        <div className="mb-4 border-b border-primary/10 pb-4">
-          <p className="text-sm font-medium text-slate-900">Session facts</p>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex items-center text-xs font-medium text-primary uppercase tracking-widest">
+                Target Telemetry
+              </div>
+              <h1 className="text-4xl sm:text-5xl font-light tracking-tight text-slate-900">
+                {resolvedSession.candidateName}
+              </h1>
+              <p className="text-slate-500 font-light max-w-xl">
+                 Detailed monitoring timeline and environmental state analysis for the current assessment window.
+              </p>
+            </div>
+            
+            <div className="flex items-center">
+              <Badge variant={getStatusTone(resolvedSession.status)} className="rounded-sm font-medium uppercase tracking-wider text-xs px-4 py-1.5 h-auto">
+                {resolvedSession.status.replaceAll("_", " ")}
+              </Badge>
+            </div>
+          </div>
         </div>
-        <Table>
-          <TableBody>
-            {facts.map(([label, value]) => (
-              <TableRow key={label}>
-                <TableCell className="w-56 bg-slate-50 text-sm font-semibold text-slate-800">
-                  {label}
-                </TableCell>
-                <TableCell className="text-sm text-slate-700">{value}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </section>
+      </header>
 
-      <section className="rounded-[1.75rem] border border-primary/10 bg-white/94 p-4 shadow-sm">
-        <div className="mb-4 border-b border-primary/10 pb-4">
-          <p className="text-sm font-medium text-slate-900">Event timeline</p>
-          <p className="text-xs text-slate-500">
-            All browser-observable actions and best-effort inferred shortcut attempts.
-          </p>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Time</TableHead>
-              <TableHead>Severity</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Message</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {resolvedSession.events.length > 0 ? (
-              resolvedSession.events.map((event) => (
-                <TableRow key={event.id}>
-                  <TableCell className="whitespace-nowrap text-slate-600">
-                    {formatTimestamp(event.timestamp)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getSeverityTone(event.severity)}>
-                      {event.severity}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs font-medium uppercase tracking-wide text-slate-600">
-                    {event.type.replaceAll("_", " ")}
-                  </TableCell>
-                  <TableCell className="text-sm text-slate-800">{event.message}</TableCell>
+      <main className="mx-auto max-w-7xl px-6 sm:px-12 mt-12 grid gap-12 lg:grid-cols-[320px_1fr] xl:grid-cols-[380px_1fr]">
+        
+        <aside className="space-y-8">
+           <section className="bg-white border border-slate-200">
+            <div className="border-b border-slate-200 p-6 bg-slate-50/50">
+              <h2 className="text-sm font-medium uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                <Activity className="size-4 text-primary" /> Session Variables
+              </h2>
+            </div>
+            <div className="p-6">
+              <dl className="space-y-5 text-sm">
+                {facts.map(([label, value]) => (
+                  <div key={label} className="flex flex-col gap-1">
+                    <dt className="text-xs text-slate-400 uppercase tracking-wider">{label}</dt>
+                    <dd className="font-medium text-slate-900">{value || "—"}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </section>
+        </aside>
+
+        <section className="bg-white border border-slate-200 overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 p-6 bg-slate-50/50">
+             <div>
+              <h2 className="text-sm font-medium uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                <Terminal className="size-4 text-primary" /> Event Log
+              </h2>
+              <p className="text-xs text-slate-500 mt-2 font-light">
+                Chronological record of browser interactions and inferred shortcut anomalies.
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-slate-200 hover:bg-transparent bg-white">
+                  <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs pl-6">Timestamp</TableHead>
+                  <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs">Level</TableHead>
+                  <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs">Action</TableHead>
+                  <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs pr-6">Details</TableHead>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-sm text-slate-500">
-                  No session events yet.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </section>
+              </TableHeader>
+              <TableBody>
+                {resolvedSession.events.length > 0 ? (
+                  [...resolvedSession.events].reverse().map((event) => (
+                    <TableRow key={event.id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
+                      <TableCell className="pl-6 py-4 whitespace-nowrap text-xs text-slate-500 font-mono">
+                        {formatTimestamp(event.timestamp)}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Badge variant={getSeverityTone(event.severity)} className="rounded-sm font-medium uppercase tracking-wider text-[10px] px-2 py-0.5">
+                          {event.severity}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="py-4 text-xs font-medium text-slate-900">
+                        {event.type.replaceAll("_", " ")}
+                      </TableCell>
+                      <TableCell className="pr-6 py-4 text-sm text-slate-600 font-light leading-relaxed">
+                        {event.message}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-32 text-center text-sm text-slate-500">
+                      Awaiting telemetry events...
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+
+      </main>
     </div>
   )
 }
+
