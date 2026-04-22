@@ -3,7 +3,7 @@ export type ExamStatus =
   | "active"
   | "warning"
   | "submitted"
-  | "ready_to_quit"
+  | "browser_exited"
   | "disconnected"
 
 export type ViolationType =
@@ -13,13 +13,21 @@ export type ViolationType =
   | "copy_attempt"
   | "paste_attempt"
   | "cut_attempt"
+  | "shortcut_copy_attempt"
+  | "shortcut_paste_attempt"
+  | "shortcut_cut_attempt"
+  | "shortcut_tab_switch_attempt"
+  | "shortcut_window_switch_attempt"
+  | "shortcut_shutdown_attempt"
+  | "shortcut_print_attempt"
+  | "shortcut_devtools_attempt"
+  | "escape_key_attempt"
   | "context_menu"
   | "fullscreen_exit"
   | "fullscreen_restored"
   | "heartbeat_missed"
   | "submit_exam"
-  | "quit_password_success"
-  | "quit_password_failure"
+  | "browser_exit_detected"
   | "session_started"
 
 export type EventSeverity = "info" | "warning" | "critical"
@@ -43,7 +51,7 @@ export type ExamSession = {
   startedAt: string
   lastHeartbeatAt: string
   submittedAt: string | null
-  quitAllowed: boolean
+  browserExitedAt: string | null
   isFullscreen: boolean
   isVisible: boolean
   violationCount: number

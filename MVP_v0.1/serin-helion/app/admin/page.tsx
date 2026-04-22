@@ -1,4 +1,4 @@
-import { AdminDashboard } from "@/components/demo/admin-dashboard"
+import { AdminSessionList } from "@/components/demo/admin-session-list"
 import { getSnapshot } from "@/lib/demo-store"
 
 export const dynamic = "force-dynamic"
@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic"
 export default function AdminPage() {
   const snapshot = getSnapshot()
 
-  return <AdminDashboard initialSnapshot={snapshot} />
+  return <AdminSessionList initialSnapshot={snapshot} />
 }

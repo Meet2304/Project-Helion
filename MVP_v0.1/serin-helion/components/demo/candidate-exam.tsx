@@ -4,12 +4,10 @@ import Link from "next/link"
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
-  CheckCircle2,
-  ClipboardList,
-  Copy,
-  ExternalLink,
-  Fullscreen,
-  Shield,
+  ArrowRight,
+  ShieldAlert,
+  Terminal,
+  Activity,
 } from "lucide-react"
 
 import {
@@ -22,17 +20,8 @@ import { type ExamSession, type SessionEventInput } from "@/lib/demo-types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 
 type CandidateExamProps = {
   examCode: string
@@ -86,7 +75,6 @@ export function CandidateExam({
 }: CandidateExamProps) {
   const [candidateName, setCandidateName] = useState("")
   const [candidateEmailOrId, setCandidateEmailOrId] = useState("")
-  const [quitPassword, setQuitPassword] = useState("")
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [sessionState, setSessionState] = useState<SessionState | null>(null)
   const [secondsRemaining, setSecondsRemaining] = useState(getInitialSecondsRemaining)
@@ -94,12 +82,19 @@ export function CandidateExam({
   const [error, setError] = useState<string | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isCheckingQuitPassword, setIsCheckingQuitPassword] = useState(false)
   const heartbeatRef = useRef<number | null>(null)
+  const lastShortcutEventRef = useRef<{
+    type:
+      | "shortcut_tab_switch_attempt"
+      | "shortcut_window_switch_attempt"
+      | "shortcut_shutdown_attempt"
+      | null
+    timestamp: number
+  }>({ type: null, timestamp: 0 })
 
   const session = sessionState?.session ?? null
-  const isSubmitted = session?.status === "submitted" || session?.status === "ready_to_quit"
-  const isReadyToQuit = session?.status === "ready_to_quit"
+  const isSubmitted = session?.status === "submitted"
+  const isSessionClosed = session?.status === "browser_exited"
 
   const timerLabel = useMemo(() => {
     const minutes = Math.floor(secondsRemaining / 60)
@@ -132,7 +127,7 @@ export function CandidateExam({
   })
 
   const sendHeartbeat = useEffectEvent(async () => {
-    if (!session || isSubmitted) {
+    if (!session || isSessionClosed) {
       return
     }
 
@@ -155,7 +150,7 @@ export function CandidateExam({
   })
 
   useEffect(() => {
-    if (!session || isSubmitted) {
+    if (!session || isSessionClosed) {
       return
     }
 
@@ -168,10 +163,10 @@ export function CandidateExam({
         window.clearInterval(heartbeatRef.current)
       }
     }
-  }, [isSubmitted, session])
+  }, [isSessionClosed, session])
 
   useEffect(() => {
-    if (!session || isSubmitted || isReadyToQuit) {
+    if (!session || isSubmitted || isSessionClosed) {
       return
     }
 
@@ -189,15 +184,33 @@ export function CandidateExam({
     return () => {
       window.clearInterval(timer)
     }
-  }, [isReadyToQuit, isSubmitted, session])
+  }, [isSessionClosed, isSubmitted, session])
 
   useEffect(() => {
-    if (!session || isSubmitted) {
+    if (!session || isSessionClosed) {
       return
     }
 
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {
+        const recentShortcut =
+          Date.now() - lastShortcutEventRef.current.timestamp < 1_200
+            ? lastShortcutEventRef.current.type
+            : null
+
+        if (recentShortcut) {
+          void logSessionEvent({
+            type: recentShortcut,
+            severity: "critical",
+            message:
+              recentShortcut === "shortcut_tab_switch_attempt"
+                ? "Likely tab switch attempt inferred from keyboard shortcut and hidden document state."
+                : recentShortcut === "shortcut_window_switch_attempt"
+                  ? "Likely window or application switch attempt inferred from keyboard shortcut and hidden document state."
+                  : "Likely shutdown or browser close attempt inferred from keyboard shortcut and hidden document state.",
+          })
+        }
+
         void logSessionEvent({
           type: "visibility_hidden",
           severity: "critical",
@@ -213,6 +226,24 @@ export function CandidateExam({
     }
 
     const handleBlur = () => {
+      const recentShortcut =
+        Date.now() - lastShortcutEventRef.current.timestamp < 1_200
+          ? lastShortcutEventRef.current.type
+          : null
+
+      if (recentShortcut) {
+        void logSessionEvent({
+          type: recentShortcut,
+          severity: "critical",
+          message:
+            recentShortcut === "shortcut_tab_switch_attempt"
+              ? "Likely tab switch attempt inferred from keyboard shortcut and window blur."
+              : recentShortcut === "shortcut_window_switch_attempt"
+                ? "Likely window or application switch attempt inferred from keyboard shortcut and window blur."
+                : "Likely shutdown or browser close attempt inferred from keyboard shortcut and window blur.",
+        })
+      }
+
       void logSessionEvent({
         type: "window_blur",
         severity: "warning",
@@ -267,6 +298,100 @@ export function CandidateExam({
       })
     }
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const metaOrCtrl = event.metaKey || event.ctrlKey
+      const lowerKey = event.key.toLowerCase()
+
+      if (metaOrCtrl && lowerKey === "c") {
+        void logSessionEvent({
+          type: "shortcut_copy_attempt",
+          severity: "warning",
+          message: "Copy keyboard shortcut detected during the exam.",
+        })
+        return
+      }
+
+      if (metaOrCtrl && lowerKey === "v") {
+        void logSessionEvent({
+          type: "shortcut_paste_attempt",
+          severity: "warning",
+          message: "Paste keyboard shortcut detected during the exam.",
+        })
+        return
+      }
+
+      if (metaOrCtrl && lowerKey === "x") {
+        void logSessionEvent({
+          type: "shortcut_cut_attempt",
+          severity: "warning",
+          message: "Cut keyboard shortcut detected during the exam.",
+        })
+        return
+      }
+
+      if (metaOrCtrl && lowerKey === "p") {
+        event.preventDefault()
+        void logSessionEvent({
+          type: "shortcut_print_attempt",
+          severity: "warning",
+          message: "Print shortcut detected during the exam.",
+        })
+        return
+      }
+
+      if (event.key === "F12" || (metaOrCtrl && event.shiftKey && lowerKey === "i")) {
+        event.preventDefault()
+        void logSessionEvent({
+          type: "shortcut_devtools_attempt",
+          severity: "warning",
+          message: "Developer tools shortcut detected during the exam.",
+        })
+        return
+      }
+
+      if (event.key === "Escape") {
+        void logSessionEvent({
+          type: "escape_key_attempt",
+          severity: "warning",
+          message: "Escape key pressed during the exam.",
+        })
+        return
+      }
+
+      if (event.altKey && event.key === "Tab") {
+        lastShortcutEventRef.current = {
+          type: "shortcut_tab_switch_attempt",
+          timestamp: Date.now(),
+        }
+        return
+      }
+
+      if ((event.altKey && event.key === "F4") || (event.metaKey && lowerKey === "q")) {
+        lastShortcutEventRef.current = {
+          type: "shortcut_shutdown_attempt",
+          timestamp: Date.now(),
+        }
+        void logSessionEvent({
+          type: "shortcut_shutdown_attempt",
+          severity: "critical",
+          message: "Likely shutdown or browser close shortcut attempted during the exam.",
+        })
+        return
+      }
+
+      if ((metaOrCtrl && lowerKey === "w") || (metaOrCtrl && event.shiftKey && lowerKey === "w")) {
+        lastShortcutEventRef.current = {
+          type: "shortcut_window_switch_attempt",
+          timestamp: Date.now(),
+        }
+        void logSessionEvent({
+          type: "shortcut_window_switch_attempt",
+          severity: "critical",
+          message: "Likely browser close or window switch shortcut attempted during the exam.",
+        })
+      }
+    }
+
     document.addEventListener("visibilitychange", handleVisibility)
     window.addEventListener("blur", handleBlur)
     document.addEventListener("copy", handleCopy)
@@ -274,6 +399,7 @@ export function CandidateExam({
     document.addEventListener("cut", handleCut)
     document.addEventListener("contextmenu", handleContextMenu)
     document.addEventListener("fullscreenchange", handleFullscreenChange)
+    window.addEventListener("keydown", handleKeyDown, true)
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility)
@@ -283,15 +409,16 @@ export function CandidateExam({
       document.removeEventListener("cut", handleCut)
       document.removeEventListener("contextmenu", handleContextMenu)
       document.removeEventListener("fullscreenchange", handleFullscreenChange)
+      window.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [isSubmitted, session])
+  }, [isSessionClosed, session])
 
   async function handleStartExam() {
     setError(null)
     setWarning(null)
 
     if (!candidateName.trim() || !candidateEmailOrId.trim()) {
-      setError("Enter the candidate name and email or ID before starting.")
+      setError("Provide candidate name and ID before commencing.")
       return
     }
 
@@ -317,7 +444,7 @@ export function CandidateExam({
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Could not start the exam session."
+          : "System failed to initialize session."
       )
     } finally {
       setIsStarting(false)
@@ -338,297 +465,215 @@ export function CandidateExam({
       )
 
       syncSession(payload.session)
-      if (heartbeatRef.current) {
-        window.clearInterval(heartbeatRef.current)
-      }
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Could not submit the exam."
+          : "System failed to submit examination."
       )
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  async function handleQuitPasswordCheck() {
-    if (!session) {
-      return
-    }
-
-    setIsCheckingQuitPassword(true)
-    setError(null)
-
-    try {
-      const payload = await postJson<{
-        session: ExamSession
-        success: boolean
-      }>(`/api/demo/session/${session.id}/quit-check`, {
-        password: quitPassword,
-      })
-
-      syncSession(payload.session)
-
-      if (!payload.success) {
-        setError("Quit password is incorrect.")
-      }
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Could not verify the quit password."
-      )
-    } finally {
-      setIsCheckingQuitPassword(false)
-    }
-  }
-
   const latestEvent = session?.latestEvent ?? null
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
-      <div className="flex flex-col gap-4 rounded-3xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-2">
-          <Badge variant="outline" className="w-fit">
-            Safe Exam Browser demo
-          </Badge>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            {examTitle}
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Candidate session demo for Serin-Helion. SEB handles lockdown, while
-            this page logs exam activity for the admin dashboard.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge variant={session ? getStatusTone(session.status) : "outline"}>
-            {session ? session.status.replaceAll("_", " ") : "not started"}
-          </Badge>
-          <Badge variant="outline">{timerLabel} remaining</Badge>
-        </div>
-      </div>
-
-      {error ? (
-        <Alert variant="destructive">
-          <AlertTriangle className="size-4" />
-          <AlertTitle>Action needed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {warning ? (
-        <Alert>
-          <AlertTriangle className="size-4" />
-          <AlertTitle>Monitoring alert</AlertTitle>
-          <AlertDescription>{warning}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="grid gap-6 lg:grid-cols-[1.7fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Candidate exam workspace</CardTitle>
-            <CardDescription>
-              Keep the session in fullscreen and complete the mock assessment
-              before requesting the quit password.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {!session ? (
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="candidate-name">Candidate name</Label>
-                  <Input
-                    id="candidate-name"
-                    value={candidateName}
-                    onChange={(event) => setCandidateName(event.target.value)}
-                    placeholder="Aarav Mehta"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="candidate-id">Email or candidate ID</Label>
-                  <Input
-                    id="candidate-id"
-                    value={candidateEmailOrId}
-                    onChange={(event) => setCandidateEmailOrId(event.target.value)}
-                    placeholder="aarav@example.edu or HELION-1024"
-                  />
-                </div>
+    <div className="mx-auto flex min-h-screen w-full flex-col bg-slate-50 font-sans selection:bg-primary/20">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 px-6 py-4 backdrop-blur-md lg:px-12">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="hidden h-4 w-1 bg-primary sm:block" />
+            <h1 className="text-lg font-medium text-slate-900 tracking-tight">
+              {examTitle}
+            </h1>
+          </div>
+          <div className="flex items-center gap-4 text-sm font-medium">
+            {session && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 text-slate-700">
+                <Activity className="size-3.5" />
+                <span className="uppercase tracking-widest text-[10px]">{session.status.replaceAll("_", " ")}</span>
               </div>
-            ) : (
-              <div className="space-y-5">
-                {questions.map((question, index) => (
-                  <div key={question.id} className="space-y-2">
-                    <Label htmlFor={question.id}>
-                      Question {index + 1}
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      {question.prompt}
-                    </p>
-                    <textarea
-                      id={question.id}
-                      value={answers[question.id] ?? ""}
-                      onChange={(event) =>
-                        setAnswers((current) => ({
-                          ...current,
-                          [question.id]: event.target.value,
-                        }))
-                      }
-                      disabled={isSubmitted}
-                      className="border-input bg-background min-h-28 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60"
-                      placeholder="Type a concise response for the demo..."
+            )}
+            <div className="font-mono text-slate-900 tabular-nums">
+              {timerLabel}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-10 lg:px-12 lg:py-16">
+        
+        {error && (
+          <div className="mb-8 border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+            <div className="flex items-center gap-2 font-medium mb-1">
+              <AlertTriangle className="size-4" /> System Error
+            </div>
+            {error}
+          </div>
+        )}
+
+        {warning && (
+          <div className="mb-8 border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+             <div className="flex items-center gap-2 font-medium mb-1">
+              <ShieldAlert className="size-4" /> Security Notice
+            </div>
+            {warning}
+          </div>
+        )}
+
+        <div className="grid gap-12 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_380px]">
+          
+          <section className="bg-white p-8 sm:p-12 border border-slate-200 shadow-sm">
+            {!session ? (
+              <div className="mx-auto max-w-lg space-y-10 py-10">
+                <div className="space-y-3">
+                  <h2 className="text-3xl font-light text-slate-900">Identity Verification</h2>
+                  <p className="text-slate-500 font-light leading-relaxed">
+                    Please provide your credentials. The environment will lock into fullscreen mode upon commencement.
+                  </p>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="candidate-name" className="uppercase text-xs tracking-widest text-slate-400">Legal Name</Label>
+                    <Input
+                      id="candidate-name"
+                      value={candidateName}
+                      onChange={(event) => setCandidateName(event.target.value)}
+                      className="h-12 rounded-none border-slate-200 border-x-0 border-t-0 border-b-2 bg-transparent px-0 focus-visible:border-primary focus-visible:ring-0 text-base shadow-none text-slate-900"
                     />
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="justify-between gap-3">
-            {!session ? (
-              <Button onClick={handleStartExam} disabled={isStarting}>
-                <Shield className="size-4" />
-                {isStarting ? "Starting session..." : "Start exam"}
-              </Button>
-            ) : !isSubmitted ? (
-              <Button onClick={handleSubmitExam} disabled={isSubmitting}>
-                <ClipboardList className="size-4" />
-                {isSubmitting ? "Submitting..." : "Submit exam"}
-              </Button>
-            ) : (
-              <span className="text-sm text-muted-foreground">
-                Exam submitted. Request the quit password to close SEB.
-              </span>
-            )}
-          </CardFooter>
-        </Card>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Session summary</CardTitle>
-              <CardDescription>
-                Live candidate context that mirrors what the admin sees.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Exam code</span>
-                <span className="font-medium">{examCode}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Candidate</span>
-                <span className="text-right font-medium">
-                  {candidateName || "Pending"}
-                </span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Identity</span>
-                <span className="text-right font-medium">
-                  {candidateEmailOrId || "Pending"}
-                </span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Fullscreen</span>
-                <span className="font-medium">
-                  {session ? (session.isFullscreen ? "Yes" : "No") : "Pending"}
-                </span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Last event</span>
-                <span className="text-right font-medium">
-                  {latestEvent ? latestEvent.message : "No activity yet"}
-                </span>
-              </div>
-              {session ? (
-                <>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Started</span>
-                    <span className="text-right font-medium">
-                      {formatTimestamp(session.startedAt)}
-                    </span>
+                  <div className="space-y-2">
+                    <Label htmlFor="candidate-id" className="uppercase text-xs tracking-widest text-slate-400">Identification Number</Label>
+                    <Input
+                      id="candidate-id"
+                      value={candidateEmailOrId}
+                      onChange={(event) => setCandidateEmailOrId(event.target.value)}
+                      className="h-12 rounded-none border-slate-200 border-x-0 border-t-0 border-b-2 bg-transparent px-0 focus-visible:border-primary focus-visible:ring-0 text-base shadow-none text-slate-900"
+                    />
                   </div>
-                </>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Exam instructions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <div className="flex items-start gap-3">
-                <Shield className="mt-0.5 size-4" />
-                <p>Stay within Safe Exam Browser and remain in fullscreen.</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <Copy className="mt-0.5 size-4" />
-                <p>Copy, paste, and context-menu attempts are recorded.</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <Fullscreen className="mt-0.5 size-4" />
-                <p>Leaving fullscreen raises an immediate warning for admins.</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <ExternalLink className="mt-0.5 size-4" />
-                <p>After submission, enter the hardcoded quit password to exit.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {isSubmitted ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Quit password check</CardTitle>
-                <CardDescription>
-                  SEB should only be closed after the exam is complete.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="quit-password">Quit password</Label>
-                  <Input
-                    id="quit-password"
-                    type="password"
-                    value={quitPassword}
-                    onChange={(event) => setQuitPassword(event.target.value)}
-                    placeholder="Enter the quit password"
-                    disabled={isReadyToQuit}
-                  />
                 </div>
-                <Button
-                  onClick={handleQuitPasswordCheck}
-                  disabled={isCheckingQuitPassword || isReadyToQuit}
+                
+                <Button 
+                  onClick={handleStartExam} 
+                  disabled={isStarting}
+                  className="w-full h-14 rounded-none bg-primary text-white hover:bg-primary/90 font-medium uppercase tracking-widest text-sm"
                 >
-                  {isCheckingQuitPassword ? "Checking..." : "Validate password"}
+                  {isStarting ? "Initializing..." : "Commence Examination"}
+                  {!isStarting && <ArrowRight className="ml-3 size-4" />}
                 </Button>
-                {isReadyToQuit ? (
-                  <Alert>
-                    <CheckCircle2 className="size-4" />
-                    <AlertTitle>Candidate may now close SEB</AlertTitle>
-                    <AlertDescription>
-                      Quit access granted at {formatTimestamp(session?.lastHeartbeatAt ?? null)}.
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
-      </div>
+              </div>
+            ) : (
+              <div className="space-y-12">
+                <div className="border-b border-slate-100 pb-6">
+                  <h2 className="text-2xl font-light text-slate-900">Assessment Questionnaire</h2>
+                </div>
+                
+                <div className="space-y-10">
+                  {questions.map((question, index) => (
+                    <div key={question.id} className="space-y-4">
+                      <Label htmlFor={question.id} className="text-sm font-medium text-slate-900">
+                        <span className="text-primary mr-2">{String(index + 1).padStart(2, '0')}</span>
+                        {question.prompt}
+                      </Label>
+                      <textarea
+                        id={question.id}
+                        value={answers[question.id] ?? ""}
+                        onChange={(event) =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [question.id]: event.target.value,
+                          }))
+                        }
+                        disabled={isSubmitted}
+                        className="min-h-[160px] w-full resize-y rounded-none border border-slate-200 bg-slate-50 p-4 text-base font-light outline-none transition-colors focus:border-primary focus:bg-white focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        placeholder="Enter response..."
+                      />
+                    </div>
+                  ))}
+                </div>
 
-      <div className="text-center text-xs text-muted-foreground">
-        Admin monitor available at{" "}
-        <Link href="/admin" className="underline underline-offset-4">
-          /admin
-        </Link>
-      </div>
+                <div className="pt-8 border-t border-slate-100">
+                  {!isSubmitted ? (
+                    <Button 
+                      onClick={handleSubmitExam} 
+                      disabled={isSubmitting}
+                      className="h-14 px-8 rounded-none bg-slate-900 text-white hover:bg-slate-800 font-medium uppercase tracking-widest text-sm"
+                    >
+                      {isSubmitting ? "Processing..." : "Conclude Assessment"}
+                    </Button>
+                  ) : (
+                     <div className="inline-flex items-center gap-3 bg-green-50 text-green-800 px-6 py-4 border border-green-200">
+                       <div className="size-2 rounded-full bg-green-500 animate-pulse" />
+                       <span className="text-sm font-medium uppercase tracking-widest">Submission Recorded</span>
+                     </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <aside className="space-y-8">
+            <div className="bg-white border border-slate-200 p-6">
+              <h3 className="text-xs font-medium uppercase tracking-widest text-slate-900 mb-6 flex items-center gap-2">
+                <Terminal className="size-4 text-primary" /> Telemetry
+              </h3>
+              
+              <dl className="space-y-4 text-sm">
+                <div>
+                  <dt className="text-xs text-slate-400 uppercase tracking-wider mb-1">Subject</dt>
+                  <dd className="font-medium text-slate-900">{candidateName || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-400 uppercase tracking-wider mb-1">Identifier</dt>
+                  <dd className="font-mono text-slate-700">{candidateEmailOrId || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-400 uppercase tracking-wider mb-1">Environment</dt>
+                  <dd className="text-slate-700">
+                    {session ? (session.isFullscreen ? "Secured (Fullscreen)" : "Compromised (Windowed)") : "Pending"}
+                  </dd>
+                </div>
+                <div className="pt-4 border-t border-slate-100">
+                  <dt className="text-xs text-slate-400 uppercase tracking-wider mb-1">Latest Log</dt>
+                  <dd className="text-slate-600 font-light text-xs leading-relaxed">
+                    {latestEvent ? latestEvent.message : "Awaiting events..."}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="bg-slate-900 p-6 text-slate-300 border border-slate-800">
+               <h3 className="text-xs font-medium uppercase tracking-widest text-white mb-4">
+                Protocols
+              </h3>
+              <ul className="space-y-3 text-xs font-light leading-relaxed">
+                <li className="flex gap-3">
+                  <div className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
+                  Maintain fullscreen continuously.
+                </li>
+                <li className="flex gap-3">
+                  <div className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
+                  Clipboard actions are monitored and logged.
+                </li>
+                <li className="flex gap-3">
+                  <div className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
+                  Loss of focus generates a critical alert.
+                </li>
+              </ul>
+            </div>
+          </aside>
+
+        </div>
+      </main>
+
+      <footer className="border-t border-slate-200 py-6 text-center">
+        <p className="text-xs text-slate-400 uppercase tracking-widest">
+          Diagnostics <Link href="/admin" className="text-slate-900 hover:text-primary transition-colors underline underline-offset-4">Monitor Console</Link>
+        </p>
+      </footer>
     </div>
   )
 }
+

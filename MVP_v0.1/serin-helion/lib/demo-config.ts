@@ -8,9 +8,6 @@ export const DEMO_EXAM_DURATION_MINUTES = Number(
   process.env.NEXT_PUBLIC_DEMO_EXAM_DURATION_MINUTES ?? "15"
 )
 
-export const DEMO_QUIT_PASSWORD =
-  process.env.DEMO_QUIT_PASSWORD ?? "SERIN-QUIT-2026"
-
 export const DEMO_ADMIN_PASSCODE =
   process.env.NEXT_PUBLIC_DEMO_ADMIN_PASSCODE ?? "HELION-ADMIN"
 

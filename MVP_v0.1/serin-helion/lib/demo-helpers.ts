@@ -34,7 +34,7 @@ export function getStatusTone(status: ExamStatus) {
       return "secondary"
     case "submitted":
       return "outline"
-    case "ready_to_quit":
+    case "browser_exited":
       return "default"
     case "disconnected":
       return "destructive"

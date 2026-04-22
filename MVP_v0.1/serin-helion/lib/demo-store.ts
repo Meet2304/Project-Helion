@@ -17,7 +17,7 @@ type SessionStartInput = {
 }
 
 type SessionPatch = Partial<
-  Pick<ExamSession, "isFullscreen" | "isVisible" | "status" | "quitAllowed">
+  Pick<ExamSession, "isFullscreen" | "isVisible" | "status">
 >
 
 type Listener = (snapshot: AdminSnapshot) => void
@@ -38,18 +38,18 @@ function cloneSession(session: ExamSession): ExamSession {
 }
 
 function deriveStatus(session: ExamSession): ExamStatus {
-  if (session.quitAllowed) {
-    return "ready_to_quit"
+  const heartbeatAge = Date.now() - new Date(session.lastHeartbeatAt).getTime()
+
+  if (session.submittedAt && heartbeatAge > DISCONNECT_AFTER_MS) {
+    return "browser_exited"
+  }
+
+  if (!session.submittedAt && heartbeatAge > DISCONNECT_AFTER_MS) {
+    return "disconnected"
   }
 
   if (session.submittedAt) {
     return "submitted"
-  }
-
-  const heartbeatAge = Date.now() - new Date(session.lastHeartbeatAt).getTime()
-
-  if (heartbeatAge > DISCONNECT_AFTER_MS) {
-    return "disconnected"
   }
 
   if (!session.isFullscreen || !session.isVisible || session.violationCount > 0) {
@@ -62,9 +62,7 @@ function deriveStatus(session: ExamSession): ExamStatus {
 function getOrderedSessions() {
   return Array.from(sessions.values())
     .map((session) => {
-      const next = cloneSession(session)
-      next.status = deriveStatus(next)
-      return next
+      return materializeSession(session)
     })
     .sort((left, right) => {
       return (
@@ -119,6 +117,10 @@ function appendEvent(sessionId: string, eventInput: SessionEventInput) {
     session.isFullscreen = true
   }
 
+  if (event.type === "browser_exit_detected") {
+    session.browserExitedAt = event.timestamp
+  }
+
   session.status = deriveStatus(session)
   emit()
 
@@ -145,7 +147,7 @@ export function createSession(input: SessionStartInput) {
     startedAt: now,
     lastHeartbeatAt: now,
     submittedAt: null,
-    quitAllowed: false,
+    browserExitedAt: null,
     isFullscreen: true,
     isVisible: true,
     violationCount: 0,
@@ -170,9 +172,7 @@ export function getSession(sessionId: string) {
     return null
   }
 
-  const next = cloneSession(session)
-  next.status = deriveStatus(next)
-  return next
+  return materializeSession(session)
 }
 
 export function updateHeartbeat(sessionId: string, patch?: SessionPatch) {
@@ -222,33 +222,12 @@ export function submitSession(sessionId: string) {
   session.submittedAt = new Date().toISOString()
   session.status = "submitted"
   session.lastHeartbeatAt = new Date().toISOString()
+  session.browserExitedAt = null
 
   appendEvent(sessionId, {
     type: "submit_exam",
     severity: "info",
     message: "Candidate submitted the exam.",
-  })
-
-  return cloneSession(sessions.get(sessionId)!)
-}
-
-export function allowQuit(sessionId: string, allowed: boolean) {
-  const session = sessions.get(sessionId)
-
-  if (!session) {
-    return null
-  }
-
-  session.quitAllowed = allowed
-  session.status = allowed ? "ready_to_quit" : deriveStatus(session)
-  session.lastHeartbeatAt = new Date().toISOString()
-
-  appendEvent(sessionId, {
-    type: allowed ? "quit_password_success" : "quit_password_failure",
-    severity: allowed ? "info" : "warning",
-    message: allowed
-      ? "Correct quit password entered."
-      : "Incorrect quit password entered.",
   })
 
   return cloneSession(sessions.get(sessionId)!)
@@ -261,4 +240,34 @@ export function subscribeToSessions(listener: Listener) {
   return () => {
     listeners.delete(listener)
   }
+}
+
+function materializeSession(session: ExamSession) {
+  const next = cloneSession(session)
+  next.status = deriveStatus(next)
+
+  if (next.status === "browser_exited" && !next.browserExitedAt) {
+    next.browserExitedAt = new Date().toISOString()
+    session.browserExitedAt = next.browserExitedAt
+
+    const existingExitEvent = session.events.find(
+      (event) => event.type === "browser_exit_detected"
+    )
+
+    if (!existingExitEvent) {
+      const event: SessionEvent = {
+        id: createId("evt"),
+        sessionId: session.id,
+        type: "browser_exit_detected",
+        severity: "info",
+        message: "Browser session ended after exam submission.",
+        timestamp: next.browserExitedAt,
+      }
+
+      session.events = [event, ...session.events].slice(0, MAX_EVENT_LOGS_PER_SESSION)
+      session.latestEvent = event
+    }
+  }
+
+  return next
 }
