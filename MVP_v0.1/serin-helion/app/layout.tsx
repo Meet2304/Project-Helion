@@ -1,17 +1,6 @@
-import { Geist, Geist_Mono, Playfair_Display } from "next/font/google"
-
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@/lib/utils";
-
-const playfairDisplayHeading = Playfair_Display({subsets:['latin'],variable:'--font-heading'});
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'})
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-})
+import { cn } from "@/lib/utils"
 
 export default function RootLayout({
   children,
@@ -22,7 +11,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", geist.variable, playfairDisplayHeading.variable)}
+      className={cn("antialiased font-sans")}
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>
