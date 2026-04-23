@@ -15,7 +15,12 @@ import {
   DEMO_EXAM_TITLE,
   HEARTBEAT_INTERVAL_MS,
 } from "@/lib/demo-config"
-import { type ExamSession, type SessionEventInput } from "@/lib/demo-types"
+import {
+  type EventSeverity,
+  type ExamSession,
+  type SessionEventInput,
+  type ViolationType,
+} from "@/lib/demo-types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -66,6 +71,279 @@ function getInitialSecondsRemaining() {
   return DEMO_EXAM_DURATION_MINUTES * 60
 }
 
+type ShortcutAttempt = {
+  type: ViolationType
+  severity: EventSeverity
+  message: string
+  label: string
+  trackForFocusLoss?: boolean
+  preventDefault?: boolean
+}
+
+type RecentShortcutEvent = {
+  type:
+    | "shortcut_tab_switch_attempt"
+    | "shortcut_window_switch_attempt"
+    | "shortcut_shutdown_attempt"
+    | null
+  timestamp: number
+  directlyLogged: boolean
+}
+
+function getShortcutMetadata(event: KeyboardEvent, shortcutLabel: string) {
+  return {
+    key: event.key,
+    code: event.code,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    altKey: event.altKey,
+    shiftKey: event.shiftKey,
+    shortcutLabel,
+  }
+}
+
+function getModifierLabel(event: KeyboardEvent) {
+  const modifiers = []
+
+  if (event.ctrlKey) {
+    modifiers.push("Ctrl")
+  }
+
+  if (event.metaKey) {
+    modifiers.push("Cmd")
+  }
+
+  if (event.altKey) {
+    modifiers.push("Alt")
+  }
+
+  if (event.shiftKey) {
+    modifiers.push("Shift")
+  }
+
+  return modifiers
+}
+
+function getShortcutLabel(event: KeyboardEvent) {
+  const modifiers = getModifierLabel(event)
+  const key =
+    event.key.length === 1
+      ? event.key.toUpperCase()
+      : event.key.replace(/^Arrow/, "")
+
+  return [...modifiers, key].join("+")
+}
+
+function classifyShortcutAttempt(event: KeyboardEvent): ShortcutAttempt | null {
+  const lowerKey = event.key.toLowerCase()
+  const metaOrCtrl = event.metaKey || event.ctrlKey
+  const label = getShortcutLabel(event)
+
+  if (metaOrCtrl && lowerKey === "c") {
+    return {
+      type: "shortcut_copy_attempt",
+      severity: "warning",
+      message: "Copy keyboard shortcut attempted during the exam.",
+      label,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "v") {
+    return {
+      type: "shortcut_paste_attempt",
+      severity: "warning",
+      message: "Paste keyboard shortcut attempted during the exam.",
+      label,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "x") {
+    return {
+      type: "shortcut_cut_attempt",
+      severity: "warning",
+      message: "Cut keyboard shortcut attempted during the exam.",
+      label,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "a") {
+    return {
+      type: "shortcut_select_all_attempt",
+      severity: "warning",
+      message: "Select-all keyboard shortcut attempted during the exam.",
+      label,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "f") {
+    return {
+      type: "shortcut_find_attempt",
+      severity: "warning",
+      message: "Find keyboard shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "t") {
+    return {
+      type: "shortcut_new_tab_attempt",
+      severity: "critical",
+      message: "New tab keyboard shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "n") {
+    return {
+      type: "shortcut_new_window_attempt",
+      severity: "critical",
+      message: event.shiftKey
+        ? "Private window keyboard shortcut attempted during the exam."
+        : "New window keyboard shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "r") {
+    return {
+      type: "shortcut_reload_attempt",
+      severity: "critical",
+      message: "Reload keyboard shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "s") {
+    return {
+      type: "shortcut_save_attempt",
+      severity: "critical",
+      message: "Save page keyboard shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "l") {
+    return {
+      type: "shortcut_address_bar_attempt",
+      severity: "critical",
+      message: "Address bar keyboard shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "p") {
+    return {
+      type: "shortcut_print_attempt",
+      severity: "critical",
+      message: "Print keyboard shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (
+    event.key === "F12" ||
+    (metaOrCtrl && event.shiftKey && ["i", "j", "c"].includes(lowerKey))
+  ) {
+    return {
+      type: "shortcut_devtools_attempt",
+      severity: "critical",
+      message: "Developer tools keyboard shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (
+    event.altKey &&
+    ["ArrowLeft", "ArrowRight"].includes(event.key)
+  ) {
+    return {
+      type: "shortcut_history_navigation_attempt",
+      severity: "critical",
+      message: "Browser history navigation shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (
+    event.metaKey &&
+    ["[", "]", "ArrowLeft", "ArrowRight"].includes(event.key)
+  ) {
+    return {
+      type: "shortcut_history_navigation_attempt",
+      severity: "critical",
+      message: "Browser history navigation shortcut attempted during the exam.",
+      label,
+      preventDefault: true,
+    }
+  }
+
+  if (event.key === "Escape") {
+    return {
+      type: "escape_key_attempt",
+      severity: "warning",
+      message: "Escape key attempted during the exam.",
+      label,
+    }
+  }
+
+  if (event.altKey && event.key === "Tab") {
+    return {
+      type: "shortcut_tab_switch_attempt",
+      severity: "critical",
+      message: "Likely Windows tab or app switch shortcut attempted during the exam.",
+      label,
+      trackForFocusLoss: true,
+      preventDefault: true,
+    }
+  }
+
+  if (event.metaKey && event.key === "Tab") {
+    return {
+      type: "shortcut_window_switch_attempt",
+      severity: "critical",
+      message: "Likely macOS app switch shortcut attempted during the exam.",
+      label,
+      trackForFocusLoss: true,
+      preventDefault: true,
+    }
+  }
+
+  if ((event.altKey && event.key === "F4") || (event.metaKey && lowerKey === "q")) {
+    return {
+      type: "shortcut_shutdown_attempt",
+      severity: "critical",
+      message: "Likely shutdown or browser close shortcut attempted during the exam.",
+      label,
+      trackForFocusLoss: true,
+      preventDefault: true,
+    }
+  }
+
+  if (metaOrCtrl && lowerKey === "w") {
+    return {
+      type: "shortcut_window_switch_attempt",
+      severity: "critical",
+      message: event.shiftKey
+        ? "Close window keyboard shortcut attempted during the exam."
+        : "Close tab keyboard shortcut attempted during the exam.",
+      label,
+      trackForFocusLoss: true,
+      preventDefault: true,
+    }
+  }
+
+  return null
+}
+
 export function CandidateExam({
   examCode,
   examTitle = DEMO_EXAM_TITLE,
@@ -80,14 +358,11 @@ export function CandidateExam({
   const [isStarting, setIsStarting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const heartbeatRef = useRef<number | null>(null)
-  const lastShortcutEventRef = useRef<{
-    type:
-      | "shortcut_tab_switch_attempt"
-      | "shortcut_window_switch_attempt"
-      | "shortcut_shutdown_attempt"
-      | null
-    timestamp: number
-  }>({ type: null, timestamp: 0 })
+  const lastShortcutEventRef = useRef<RecentShortcutEvent>({
+    type: null,
+    timestamp: 0,
+    directlyLogged: false,
+  })
 
   const session = sessionState?.session ?? null
   const isSubmitted = session?.status === "submitted"
@@ -195,7 +470,7 @@ export function CandidateExam({
             ? lastShortcutEventRef.current.type
             : null
 
-        if (recentShortcut) {
+        if (recentShortcut && !lastShortcutEventRef.current.directlyLogged) {
           void logSessionEvent({
             type: recentShortcut,
             severity: "critical",
@@ -228,7 +503,7 @@ export function CandidateExam({
           ? lastShortcutEventRef.current.type
           : null
 
-      if (recentShortcut) {
+      if (recentShortcut && !lastShortcutEventRef.current.directlyLogged) {
         void logSessionEvent({
           type: recentShortcut,
           severity: "critical",
@@ -296,115 +571,30 @@ export function CandidateExam({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const metaOrCtrl = event.metaKey || event.ctrlKey
-      const lowerKey = event.key.toLowerCase()
+      const shortcut = classifyShortcutAttempt(event)
 
-      if (metaOrCtrl && lowerKey === "c") {
-        void logSessionEvent({
-          type: "shortcut_copy_attempt",
-          severity: "warning",
-          message: "Copy keyboard shortcut detected during the exam.",
-        })
+      if (!shortcut) {
         return
       }
 
-      if (metaOrCtrl && lowerKey === "v") {
-        void logSessionEvent({
-          type: "shortcut_paste_attempt",
-          severity: "warning",
-          message: "Paste keyboard shortcut detected during the exam.",
-        })
-        return
-      }
-
-      if (metaOrCtrl && lowerKey === "x") {
-        void logSessionEvent({
-          type: "shortcut_cut_attempt",
-          severity: "warning",
-          message: "Cut keyboard shortcut detected during the exam.",
-        })
-        return
-      }
-
-      if (metaOrCtrl && lowerKey === "p") {
+      if (shortcut.preventDefault) {
         event.preventDefault()
-        void logSessionEvent({
-          type: "shortcut_print_attempt",
-          severity: "warning",
-          message: "Print shortcut detected during the exam.",
-        })
-        return
       }
 
-      if (event.key === "F12" || (metaOrCtrl && event.shiftKey && lowerKey === "i")) {
-        event.preventDefault()
-        void logSessionEvent({
-          type: "shortcut_devtools_attempt",
-          severity: "warning",
-          message: "Developer tools shortcut detected during the exam.",
-        })
-        return
-      }
-
-      if (event.key === "Escape") {
-        void logSessionEvent({
-          type: "escape_key_attempt",
-          severity: "warning",
-          message: "Escape key pressed during the exam.",
-        })
-        return
-      }
-
-      if (event.altKey && event.key === "Tab") {
+      if (shortcut.trackForFocusLoss) {
         lastShortcutEventRef.current = {
-          type: "shortcut_tab_switch_attempt",
+          type: shortcut.type as RecentShortcutEvent["type"],
           timestamp: Date.now(),
+          directlyLogged: true,
         }
-        void logSessionEvent({
-          type: "shortcut_tab_switch_attempt",
-          severity: "critical",
-          message: "Likely Windows tab or app switch shortcut attempted during the exam.",
-        })
-        return
       }
 
-      if (event.metaKey && event.key === "Tab") {
-        lastShortcutEventRef.current = {
-          type: "shortcut_window_switch_attempt",
-          timestamp: Date.now(),
-        }
-        void logSessionEvent({
-          type: "shortcut_window_switch_attempt",
-          severity: "critical",
-          message: "Likely macOS app switch shortcut attempted during the exam.",
-        })
-        return
-      }
-
-      if ((event.altKey && event.key === "F4") || (event.metaKey && lowerKey === "q")) {
-        lastShortcutEventRef.current = {
-          type: "shortcut_shutdown_attempt",
-          timestamp: Date.now(),
-        }
-        void logSessionEvent({
-          type: "shortcut_shutdown_attempt",
-          severity: "critical",
-          message: "Likely shutdown or browser close shortcut attempted during the exam.",
-        })
-        return
-      }
-
-      if ((metaOrCtrl && lowerKey === "w") || (metaOrCtrl && event.shiftKey && lowerKey === "w")) {
-        lastShortcutEventRef.current = {
-          type: "shortcut_window_switch_attempt",
-          timestamp: Date.now(),
-        }
-        void logSessionEvent({
-          type: "shortcut_window_switch_attempt",
-          severity: "critical",
-          message: "Likely browser close or window switch shortcut attempted during the exam.",
-        })
-      }
+      void logSessionEvent({
+        type: shortcut.type,
+        severity: shortcut.severity,
+        message: shortcut.message,
+        metadata: getShortcutMetadata(event, shortcut.label),
+      })
     }
 
     document.addEventListener("visibilitychange", handleVisibility)
