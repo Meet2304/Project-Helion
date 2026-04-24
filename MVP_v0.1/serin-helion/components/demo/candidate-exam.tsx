@@ -21,7 +21,7 @@ import {
   type SessionEventInput,
   type ViolationType,
 } from "@/lib/demo-types"
-import { loadAnySession, saveSession, deleteSession } from "@/lib/session-persist"
+import { loadSession, loadAnySession, saveSession, deleteSession } from "@/lib/session-persist"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -384,13 +384,10 @@ export function CandidateExam({
 
     async function tryReconnect() {
       const urlSessionId = getSessionIdFromUrl()
-      const stored = await loadAnySession()
-      if (!stored || cancelled) return
+      if (!urlSessionId) return
 
-      if (urlSessionId && urlSessionId !== stored.sessionId) {
-        const storedByUrl = await loadAnySession()
-        if (storedByUrl && storedByUrl.sessionId !== urlSessionId) return
-      }
+      const stored = await loadSession(urlSessionId)
+      if (!stored || cancelled) return
 
       try {
         const payload = await postJson<{
@@ -415,7 +412,6 @@ export function CandidateExam({
           setSecondsRemaining(getInitialSecondsRemaining())
         }
       } catch {
-        // Server has no record — that's fine, clear local storage
         if (!cancelled && stored.sessionId) {
           await deleteSession(stored.sessionId)
         }
@@ -687,8 +683,7 @@ export function CandidateExam({
     setIsStarting(true)
 
     try {
-      const existingSessionId = getSessionIdFromUrl()
-      const sessionIdParam = existingSessionId ? { sessionId: existingSessionId } : {}
+      const urlSessionId = getSessionIdFromUrl()
 
       const payload = await postJson<{
         ok: boolean
@@ -700,15 +695,19 @@ export function CandidateExam({
           candidateName: candidateName.trim(),
           candidateEmailOrId: candidateEmailOrId.trim(),
           examCode,
-          ...sessionIdParam,
+          sessionId: urlSessionId || undefined,
+          externalSessionId: urlSessionId || undefined,
         }
       )
 
       setSecondsRemaining(getInitialSecondsRemaining())
+
+      const targetId = urlSessionId || payload.session.id
+
       syncSession(payload.session)
 
       await saveSession({
-        sessionId: payload.session.id,
+        sessionId: targetId,
         candidateName: candidateName.trim(),
         candidateEmailOrId: candidateEmailOrId.trim(),
         examCode: examCode,
@@ -741,7 +740,9 @@ export function CandidateExam({
       )
 
       syncSession(payload.session)
-      await deleteSession(session.id)
+      const urlId = getSessionIdFromUrl()
+      const storedId = urlId || session.id
+      await deleteSession(storedId)
     } catch (requestError) {
       setError(
         requestError instanceof Error
