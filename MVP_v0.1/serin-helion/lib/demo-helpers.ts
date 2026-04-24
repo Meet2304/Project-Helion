@@ -76,14 +76,44 @@ export function getSeverityTone(event: SessionEvent["severity"]) {
 
 export function inferEventCategory(type: ViolationType): EventCategory {
   if (
-    type.startsWith("shortcut_") ||
     type === "keyboard_blocked" ||
     type === "keyboard_allowed" ||
     type === "escape_key_attempt" ||
     type === "alt_tab_blocked" ||
     type === "windows_key_blocked" ||
     type === "task_manager_blocked" ||
-    type === "print_screen_blocked"
+    type === "print_screen_blocked" ||
+    type === "shortcut_copy_attempt" ||
+    type === "shortcut_paste_attempt" ||
+    type === "shortcut_cut_attempt" ||
+    type === "shortcut_tab_switch_attempt" ||
+    type === "shortcut_window_switch_attempt" ||
+    type === "shortcut_shutdown_attempt" ||
+    type === "shortcut_new_tab_attempt" ||
+    type === "shortcut_new_window_attempt" ||
+    type === "shortcut_reload_attempt" ||
+    type === "shortcut_save_attempt" ||
+    type === "shortcut_find_attempt" ||
+    type === "shortcut_select_all_attempt" ||
+    type === "shortcut_address_bar_attempt" ||
+    type === "shortcut_history_navigation_attempt" ||
+    type === "shortcut_print_attempt" ||
+    type === "shortcut_devtools_attempt" ||
+    type === "shortcut_copy_allowed" ||
+    type === "shortcut_paste_allowed" ||
+    type === "shortcut_cut_allowed" ||
+    type === "shortcut_select_all_allowed" ||
+    type === "shortcut_undo_allowed" ||
+    type === "shortcut_redo_allowed" ||
+    type === "shortcut_save_allowed" ||
+    type === "shortcut_print_allowed" ||
+    type === "shortcut_new_allowed" ||
+    type === "shortcut_new_tab_allowed" ||
+    type === "shortcut_close_tab_allowed" ||
+    type === "shortcut_next_tab_allowed" ||
+    type === "shortcut_find_allowed" ||
+    type === "shortcut_history_allowed" ||
+    type === "shortcut_reload_allowed"
   ) {
     return "keyboard"
   }
@@ -128,7 +158,6 @@ export function inferEventCategory(type: ViolationType): EventCategory {
     type === "display_changed" ||
     type === "mouse_blocked" ||
     type === "screen_capture_blocked" ||
-    type === "print_screen_blocked" ||
     type === "browser_lockdown_active" ||
     type === "browser_lockdown_released" ||
     type === "system_event" ||
@@ -141,49 +170,67 @@ export function inferEventCategory(type: ViolationType): EventCategory {
 }
 
 export function inferEventSource(type: ViolationType): EventSource {
-  const browserNativeTypes: ViolationType[] = [
-    "browser_exit_detected",
-    "keyboard_blocked",
-    "keyboard_allowed",
-    "clipboard_cleared",
-    "process_blocked",
-    "process_terminated",
-    "window_hidden",
-    "window_closed",
-    "explorer_started",
-    "vm_detected",
-    "remote_session_detected",
-    "display_changed",
-    "mouse_blocked",
-    "focus_changed",
-    "application_started",
-    "application_terminated",
-    "system_event",
-    "browser_lockdown_active",
-    "browser_lockdown_released",
-    "screen_capture_blocked",
-    "print_screen_blocked",
-    "task_manager_blocked",
-    "alt_tab_blocked",
-    "windows_key_blocked",
-    "shortcut_copy_allowed",
-    "shortcut_paste_allowed",
-    "shortcut_cut_allowed",
-    "shortcut_select_all_allowed",
-    "shortcut_undo_allowed",
-    "shortcut_redo_allowed",
-    "shortcut_save_allowed",
-    "shortcut_print_allowed",
-    "shortcut_new_allowed",
-    "shortcut_new_tab_allowed",
-    "shortcut_close_tab_allowed",
-    "shortcut_next_tab_allowed",
-    "shortcut_find_allowed",
-    "shortcut_history_allowed",
-    "shortcut_reload_allowed",
-  ]
-
-  if (browserNativeTypes.includes(type)) {
+  if (
+    type === "browser_exit_detected" ||
+    type === "keyboard_blocked" ||
+    type === "keyboard_allowed" ||
+    type === "clipboard_cleared" ||
+    type === "process_blocked" ||
+    type === "process_terminated" ||
+    type === "window_hidden" ||
+    type === "window_closed" ||
+    type === "explorer_started" ||
+    type === "vm_detected" ||
+    type === "remote_session_detected" ||
+    type === "display_changed" ||
+    type === "mouse_blocked" ||
+    type === "focus_changed" ||
+    type === "application_started" ||
+    type === "application_terminated" ||
+    type === "system_event" ||
+    type === "browser_lockdown_active" ||
+    type === "browser_lockdown_released" ||
+    type === "screen_capture_blocked" ||
+    type === "print_screen_blocked" ||
+    type === "task_manager_blocked" ||
+    type === "alt_tab_blocked" ||
+    type === "windows_key_blocked" ||
+    type === "shortcut_copy_attempt" ||
+    type === "shortcut_paste_attempt" ||
+    type === "shortcut_cut_attempt" ||
+    type === "shortcut_tab_switch_attempt" ||
+    type === "shortcut_window_switch_attempt" ||
+    type === "shortcut_shutdown_attempt" ||
+    type === "shortcut_new_tab_attempt" ||
+    type === "shortcut_new_window_attempt" ||
+    type === "shortcut_reload_attempt" ||
+    type === "shortcut_save_attempt" ||
+    type === "shortcut_find_attempt" ||
+    type === "shortcut_select_all_attempt" ||
+    type === "shortcut_address_bar_attempt" ||
+    type === "shortcut_history_navigation_attempt" ||
+    type === "shortcut_print_attempt" ||
+    type === "shortcut_devtools_attempt" ||
+    type === "shortcut_copy_allowed" ||
+    type === "shortcut_paste_allowed" ||
+    type === "shortcut_cut_allowed" ||
+    type === "shortcut_select_all_allowed" ||
+    type === "shortcut_undo_allowed" ||
+    type === "shortcut_redo_allowed" ||
+    type === "shortcut_save_allowed" ||
+    type === "shortcut_print_allowed" ||
+    type === "shortcut_new_allowed" ||
+    type === "shortcut_new_tab_allowed" ||
+    type === "shortcut_close_tab_allowed" ||
+    type === "shortcut_next_tab_allowed" ||
+    type === "shortcut_find_allowed" ||
+    type === "shortcut_history_allowed" ||
+    type === "shortcut_reload_allowed" ||
+    type === "context_menu" ||
+    type === "heartbeat_missed" ||
+    type === "submit_exam" ||
+    type === "session_started"
+  ) {
     return "browser"
   }
 
