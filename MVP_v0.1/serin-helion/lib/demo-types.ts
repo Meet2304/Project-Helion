@@ -37,6 +37,7 @@ export type ViolationType =
   | "submit_exam"
   | "browser_exit_detected"
   | "session_started"
+  | "session_updated"
   // Browser-native events from Serin Helion Browser (C# side)
   | "keyboard_blocked"
   | "clipboard_cleared"
