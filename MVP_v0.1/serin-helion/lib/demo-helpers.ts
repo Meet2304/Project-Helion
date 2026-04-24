@@ -78,10 +78,12 @@ export function inferEventCategory(type: ViolationType): EventCategory {
   if (
     type.startsWith("shortcut_") ||
     type === "keyboard_blocked" ||
+    type === "keyboard_allowed" ||
     type === "escape_key_attempt" ||
     type === "alt_tab_blocked" ||
     type === "windows_key_blocked" ||
-    type === "task_manager_blocked"
+    type === "task_manager_blocked" ||
+    type === "print_screen_blocked"
   ) {
     return "keyboard"
   }
@@ -129,7 +131,8 @@ export function inferEventCategory(type: ViolationType): EventCategory {
     type === "print_screen_blocked" ||
     type === "browser_lockdown_active" ||
     type === "browser_lockdown_released" ||
-    type === "system_event"
+    type === "system_event" ||
+    type === "browser_exit_detected"
   ) {
     return "system"
   }
@@ -139,7 +142,9 @@ export function inferEventCategory(type: ViolationType): EventCategory {
 
 export function inferEventSource(type: ViolationType): EventSource {
   const browserNativeTypes: ViolationType[] = [
+    "browser_exit_detected",
     "keyboard_blocked",
+    "keyboard_allowed",
     "clipboard_cleared",
     "process_blocked",
     "process_terminated",
@@ -161,6 +166,21 @@ export function inferEventSource(type: ViolationType): EventSource {
     "task_manager_blocked",
     "alt_tab_blocked",
     "windows_key_blocked",
+    "shortcut_copy_allowed",
+    "shortcut_paste_allowed",
+    "shortcut_cut_allowed",
+    "shortcut_select_all_allowed",
+    "shortcut_undo_allowed",
+    "shortcut_redo_allowed",
+    "shortcut_save_allowed",
+    "shortcut_print_allowed",
+    "shortcut_new_allowed",
+    "shortcut_new_tab_allowed",
+    "shortcut_close_tab_allowed",
+    "shortcut_next_tab_allowed",
+    "shortcut_find_allowed",
+    "shortcut_history_allowed",
+    "shortcut_reload_allowed",
   ]
 
   if (browserNativeTypes.includes(type)) {

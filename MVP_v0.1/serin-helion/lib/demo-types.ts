@@ -60,6 +60,23 @@ export type ViolationType =
   | "task_manager_blocked"
   | "alt_tab_blocked"
   | "windows_key_blocked"
+  // Allowed keyboard shortcuts (informational, not violations)
+  | "shortcut_copy_allowed"
+  | "shortcut_paste_allowed"
+  | "shortcut_cut_allowed"
+  | "shortcut_select_all_allowed"
+  | "shortcut_undo_allowed"
+  | "shortcut_redo_allowed"
+  | "shortcut_save_allowed"
+  | "shortcut_print_allowed"
+  | "shortcut_new_allowed"
+  | "shortcut_new_tab_allowed"
+  | "shortcut_close_tab_allowed"
+  | "shortcut_next_tab_allowed"
+  | "shortcut_find_allowed"
+  | "shortcut_history_allowed"
+  | "shortcut_reload_allowed"
+  | "keyboard_allowed"
 
 export type EventSeverity = "info" | "warning" | "critical"
 
