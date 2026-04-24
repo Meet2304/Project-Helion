@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { createSession, getSession, updateSessionCandidateInfo } from "@/lib/demo-store"
+import { createSession, getSession, updateSessionCandidateInfo, bindExternalSessionId } from "@/lib/demo-store"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -47,7 +47,8 @@ export async function POST(request: Request) {
           const updated = updateSessionCandidateInfo(
             existingSession.id,
             body.candidateName.trim(),
-            body.candidateEmailOrId.trim()
+            body.candidateEmailOrId.trim(),
+            sessionId
           )
 
           return NextResponse.json({

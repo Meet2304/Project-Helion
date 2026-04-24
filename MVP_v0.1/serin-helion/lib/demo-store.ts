@@ -253,7 +253,7 @@ export function updateHeartbeat(sessionId: string, patch?: SessionPatch) {
   return cloneSession(session)
 }
 
-export function updateSessionCandidateInfo(sessionId: string, candidateName: string, candidateEmailOrId: string) {
+export function updateSessionCandidateInfo(sessionId: string, candidateName: string, candidateEmailOrId: string, externalSessionId?: string) {
   const session = getCanonicalSession(sessionId)
 
   if (!session) {
@@ -262,6 +262,15 @@ export function updateSessionCandidateInfo(sessionId: string, candidateName: str
 
   session.candidateName = candidateName
   session.candidateEmailOrId = candidateEmailOrId
+
+  if (externalSessionId) {
+    const normalizedExternalSessionId = normalizeExternalSessionId(externalSessionId)
+
+    if (normalizedExternalSessionId) {
+      session.externalSessionId = normalizedExternalSessionId
+      externalSessionIds.set(normalizedExternalSessionId, session.id)
+    }
+  }
 
   appendEvent(sessionId, {
     type: "session_updated",
