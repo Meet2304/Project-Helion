@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { createSession, getSession } from "@/lib/demo-store"
+import { createSession, getSession, updateSessionCandidateInfo } from "@/lib/demo-store"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -18,6 +18,14 @@ export const dynamic = "force-dynamic"
  *   candidateEmailOrId: string,
  *   examCode: string
  * }
+ *
+ * OR to update an existing session with candidate info:
+ * {
+ *   sessionId: string,        // Existing session ID from C# browser
+ *   candidateName: string,
+ *   candidateEmailOrId: string,
+ *   examCode: string
+ * }
  */
 export async function POST(request: Request) {
   try {
@@ -29,38 +37,51 @@ export async function POST(request: Request) {
       externalSessionId?: string
     }
 
-    const externalSessionId =
-      body.externalSessionId?.trim() || body.sessionId?.trim() || undefined
+    const sessionId = body.sessionId?.trim() || body.externalSessionId?.trim()
 
-    if (externalSessionId) {
-      const existingSession = getSession(externalSessionId)
+    if (sessionId) {
+      const existingSession = getSession(sessionId)
 
       if (existingSession) {
+        if (body.candidateName?.trim() && body.candidateEmailOrId?.trim()) {
+          const updated = updateSessionCandidateInfo(
+            existingSession.id,
+            body.candidateName.trim(),
+            body.candidateEmailOrId.trim()
+          )
+
+          return NextResponse.json({
+            ok: true,
+            sessionId: updated!.id,
+            externalSessionId: updated!.externalSessionId ?? sessionId,
+            session: updated,
+          })
+        }
+
         return NextResponse.json({
           ok: true,
           sessionId: existingSession.id,
-          externalSessionId: existingSession.externalSessionId ?? externalSessionId,
+          externalSessionId: existingSession.externalSessionId ?? sessionId,
           session: existingSession,
         })
       }
     }
 
-    if (
-      !body.candidateName?.trim() ||
-      !body.candidateEmailOrId?.trim() ||
-      !body.examCode?.trim()
-    ) {
+    if (!body.examCode?.trim()) {
       return NextResponse.json(
-        { error: "candidateName, candidateEmailOrId, and examCode are required." },
+        { error: "examCode is required." },
         { status: 400 }
       )
     }
 
+    const defaultName = "SHB Candidate"
+    const defaultEmailOrId = body.externalSessionId?.trim() || body.sessionId?.trim() || "SEB-UNKNOWN"
+
     const session = createSession({
-      candidateName: body.candidateName.trim(),
-      candidateEmailOrId: body.candidateEmailOrId.trim(),
-      examCode: body.examCode,
-      externalSessionId,
+      candidateName: body.candidateName?.trim() || defaultName,
+      candidateEmailOrId: body.candidateEmailOrId?.trim() || defaultEmailOrId,
+      examCode: body.examCode.trim(),
+      externalSessionId: sessionId ?? undefined,
     })
 
     return NextResponse.json({
