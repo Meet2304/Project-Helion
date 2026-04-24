@@ -53,7 +53,14 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
     const eventSource = new EventSource("/api/admin/stream")
 
     eventSource.onmessage = (event) => {
-      setSnapshot(JSON.parse(event.data) as AdminSnapshot)
+      try {
+        const data = JSON.parse(event.data)
+        if (data && Array.isArray(data.sessions)) {
+          setSnapshot(data as AdminSnapshot)
+        }
+      } catch {
+        // ignore malformed messages
+      }
     }
 
     eventSource.onerror = () => {
@@ -109,7 +116,7 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
       ).length,
       browserEvents,
     }
-  }, [snapshot.sessions])
+  }, [visibleSessions])
 
   function handleUnlock() {
     if (passcode !== DEMO_ADMIN_PASSCODE) {
