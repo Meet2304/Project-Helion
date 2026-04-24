@@ -65,23 +65,31 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
     }
   }, [isUnlocked])
 
+  const PLACEHOLDER_NAMES = ["seb candidate", "shb candidate", "shb_candidate", "seb_candidate"]
+
+  const visibleSessions = useMemo(() => {
+    return snapshot.sessions.filter(
+      (session) => !PLACEHOLDER_NAMES.includes(session.candidateName.toLowerCase())
+    )
+  }, [snapshot.sessions])
+
   const filteredSessions = useMemo(() => {
     const query = search.trim().toLowerCase()
 
     if (!query) {
-      return snapshot.sessions
+      return visibleSessions
     }
 
-    return snapshot.sessions.filter((session) =>
+    return visibleSessions.filter((session) =>
       [session.candidateName, session.candidateEmailOrId, session.status]
         .join(" ")
         .toLowerCase()
         .includes(query)
     )
-  }, [search, snapshot.sessions])
+  }, [search, visibleSessions])
 
   const metrics = useMemo(() => {
-    const browserEvents = snapshot.sessions.reduce((acc, session) => {
+    const browserEvents = visibleSessions.reduce((acc, session) => {
       return acc + session.events.filter((e) => {
         const source = e.source ?? inferEventSource(e.type)
         return source === "browser"
@@ -89,14 +97,14 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
     }, 0)
 
     return {
-      total: snapshot.sessions.length,
-      live: snapshot.sessions.filter((session) =>
+      total: visibleSessions.length,
+      live: visibleSessions.filter((session) =>
         ["active", "warning", "submitted"].includes(session.status)
       ).length,
-      flagged: snapshot.sessions.filter(
+      flagged: visibleSessions.filter(
         (session) => session.status === "warning" || session.violationCount > 0
       ).length,
-      completed: snapshot.sessions.filter(
+      completed: visibleSessions.filter(
         (session) => session.status === "browser_exited"
       ).length,
       browserEvents,
