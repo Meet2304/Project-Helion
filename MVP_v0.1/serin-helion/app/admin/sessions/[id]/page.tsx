@@ -9,7 +9,7 @@ export default async function AdminSessionPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const session = getSession(id)
+  const session = await getSession(id)
 
   return <AdminSessionDetail sessionId={id} initialSession={session} />
 }

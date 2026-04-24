@@ -15,7 +15,7 @@ export async function POST(
     isVisible?: boolean
   }
 
-  const session = updateHeartbeat(id, {
+  const session = await updateHeartbeat(id, {
     isFullscreen: body.isFullscreen,
     isVisible: body.isVisible,
   })

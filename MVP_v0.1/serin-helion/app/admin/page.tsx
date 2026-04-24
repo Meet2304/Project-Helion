@@ -3,8 +3,8 @@ import { getSnapshot } from "@/lib/demo-store"
 
 export const dynamic = "force-dynamic"
 
-export default function AdminPage() {
-  const snapshot = getSnapshot()
+export default async function AdminPage() {
+  const snapshot = await getSnapshot()
 
   return <AdminSessionList initialSnapshot={snapshot} />
 }

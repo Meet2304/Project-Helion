@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid exam code." }, { status: 403 })
   }
 
-  const session = createSession({
+  const session = await createSession({
     candidateName: body.candidateName.trim(),
     candidateEmailOrId: body.candidateEmailOrId.trim(),
     examCode: body.examCode,

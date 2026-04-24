@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { createSession, getSession, updateSessionCandidateInfo, bindExternalSessionId } from "@/lib/demo-store"
+import { createSession, getSession, reconnectSession, updateSessionCandidateInfo } from "@/lib/demo-store"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -26,6 +26,18 @@ export const dynamic = "force-dynamic"
  *   candidateEmailOrId: string,
  *   examCode: string
  * }
+ *
+ * OR to reconnect a browser-stored session:
+ * {
+ *   reconnect: true,
+ *   sessionId: string,
+ *   candidateName: string,
+ *   candidateEmailOrId: string,
+ *   examCode: string,
+ *   externalSessionId: string,
+ *   startedAt: string,
+ *   lastHeartbeatAt: string
+ * }
  */
 export async function POST(request: Request) {
   try {
@@ -35,16 +47,40 @@ export async function POST(request: Request) {
       examCode?: string
       sessionId?: string
       externalSessionId?: string
+      reconnect?: boolean
+      startedAt?: string
+      lastHeartbeatAt?: string
+    }
+
+    if (body.reconnect && body.sessionId) {
+      const session = await reconnectSession({
+        sessionId: body.sessionId.trim(),
+        candidateName: body.candidateName?.trim() || "SHB Candidate",
+        candidateEmailOrId: body.candidateEmailOrId?.trim() || "SEB-UNKNOWN",
+        examCode: body.examCode?.trim() || "serin-helion-demo",
+        externalSessionId: body.externalSessionId?.trim(),
+        startedAt: body.startedAt || new Date().toISOString(),
+        lastHeartbeatAt: body.lastHeartbeatAt || new Date().toISOString(),
+      })
+
+      if (session) {
+        return NextResponse.json({
+          ok: true,
+          sessionId: session.id,
+          externalSessionId: session.externalSessionId ?? body.sessionId.trim(),
+          session,
+        })
+      }
     }
 
     const sessionId = body.sessionId?.trim() || body.externalSessionId?.trim()
 
     if (sessionId) {
-      const existingSession = getSession(sessionId)
+      const existingSession = await getSession(sessionId)
 
       if (existingSession) {
         if (body.candidateName?.trim() && body.candidateEmailOrId?.trim()) {
-          const updated = updateSessionCandidateInfo(
+          const updated = await updateSessionCandidateInfo(
             existingSession.id,
             body.candidateName.trim(),
             body.candidateEmailOrId.trim(),
@@ -78,7 +114,7 @@ export async function POST(request: Request) {
     const defaultName = "SHB Candidate"
     const defaultEmailOrId = body.externalSessionId?.trim() || body.sessionId?.trim() || "SEB-UNKNOWN"
 
-    const session = createSession({
+    const session = await createSession({
       candidateName: body.candidateName?.trim() || defaultName,
       candidateEmailOrId: body.candidateEmailOrId?.trim() || defaultEmailOrId,
       examCode: body.examCode.trim(),

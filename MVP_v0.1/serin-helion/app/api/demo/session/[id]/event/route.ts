@@ -20,7 +20,7 @@ export async function POST(
     )
   }
 
-  const session = addSessionEvent(id, {
+  const session = await addSessionEvent(id, {
     type: body.type,
     severity: body.severity,
     message: body.message,

@@ -21,6 +21,7 @@ import {
   type SessionEventInput,
   type ViolationType,
 } from "@/lib/demo-types"
+import { loadAnySession, saveSession, deleteSession } from "@/lib/session-persist"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -378,6 +379,56 @@ export function CandidateExam({
     setSessionState({ session: nextSession })
   }
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function tryReconnect() {
+      const urlSessionId = getSessionIdFromUrl()
+      const stored = await loadAnySession()
+      if (!stored || cancelled) return
+
+      if (urlSessionId && urlSessionId !== stored.sessionId) {
+        const storedByUrl = await loadAnySession()
+        if (storedByUrl && storedByUrl.sessionId !== urlSessionId) return
+      }
+
+      try {
+        const payload = await postJson<{
+          ok: boolean
+          sessionId: string
+          session: ExamSession
+        }>("/api/browser/session", {
+          reconnect: true,
+          sessionId: stored.sessionId,
+          candidateName: stored.candidateName,
+          candidateEmailOrId: stored.candidateEmailOrId,
+          examCode: stored.examCode,
+          externalSessionId: stored.externalSessionId,
+          startedAt: stored.startedAt,
+          lastHeartbeatAt: stored.lastHeartbeatAt,
+        })
+
+        if (!cancelled) {
+          syncSession(payload.session)
+          setCandidateName(stored.candidateName)
+          setCandidateEmailOrId(stored.candidateEmailOrId)
+          setSecondsRemaining(getInitialSecondsRemaining())
+        }
+      } catch {
+        // Server has no record — that's fine, clear local storage
+        if (!cancelled && stored.sessionId) {
+          await deleteSession(stored.sessionId)
+        }
+      }
+    }
+
+    void tryReconnect()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const logSessionEvent = useEffectEvent(async (event: SessionEventInput) => {
     if (!session) {
       return
@@ -655,6 +706,16 @@ export function CandidateExam({
 
       setSecondsRemaining(getInitialSecondsRemaining())
       syncSession(payload.session)
+
+      await saveSession({
+        sessionId: payload.session.id,
+        candidateName: candidateName.trim(),
+        candidateEmailOrId: candidateEmailOrId.trim(),
+        examCode: examCode,
+        externalSessionId: payload.session.externalSessionId,
+        startedAt: payload.session.startedAt,
+        lastHeartbeatAt: payload.session.lastHeartbeatAt,
+      })
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -680,6 +741,7 @@ export function CandidateExam({
       )
 
       syncSession(payload.session)
+      await deleteSession(session.id)
     } catch (requestError) {
       setError(
         requestError instanceof Error

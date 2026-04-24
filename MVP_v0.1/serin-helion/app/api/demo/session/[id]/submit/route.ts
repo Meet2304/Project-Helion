@@ -10,7 +10,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const session = submitSession(id)
+  const session = await submitSession(id)
 
   if (!session) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 })

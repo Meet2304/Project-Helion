@@ -1,4 +1,4 @@
-import { getSnapshot, subscribeToSessions } from "@/lib/demo-store"
+import { subscribeToSessions, getSnapshot } from "@/lib/demo-store"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"

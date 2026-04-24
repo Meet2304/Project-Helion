@@ -136,10 +136,10 @@ export async function POST(request: Request) {
       )
     }
 
-    let session = externalSessionId ? getSession(externalSessionId) : null
+    let session = externalSessionId ? await getSession(externalSessionId) : null
 
     if (!session) {
-      session = ensureTelemetrySession({
+      session = await ensureTelemetrySession({
         externalSessionId,
         candidateName,
         candidateEmailOrId,
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
     }
 
     if (externalSessionId) {
-      bindExternalSessionId(externalSessionId, session.id)
+      await bindExternalSessionId(externalSessionId, session.id)
     }
 
     let accepted = 0
@@ -167,7 +167,7 @@ export async function POST(request: Request) {
         continue
       }
 
-      const persisted = addSessionEvent(session.id, {
+      const persisted = await addSessionEvent(session.id, {
         ...normalizedEvent,
         source: normalizedEvent.source ?? "browser",
       })
@@ -201,5 +201,5 @@ export async function POST(request: Request) {
  * if a session exists or to bootstrap initial state.
  */
 export async function GET() {
-  return NextResponse.json(getSnapshot())
+  return NextResponse.json(await getSnapshot())
 }
