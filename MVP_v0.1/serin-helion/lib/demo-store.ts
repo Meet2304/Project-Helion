@@ -50,7 +50,12 @@ function resolveSessionKey(sessionId: string) {
     return sessionId
   }
 
-  return externalSessionIds.get(sessionId) ?? null
+  const external = externalSessionIds.get(sessionId)
+  if (external) {
+    return external
+  }
+
+  return null
 }
 
 function getCanonicalSession(sessionId: string) {
