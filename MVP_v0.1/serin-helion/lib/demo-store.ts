@@ -2,6 +2,7 @@ import {
   DISCONNECT_AFTER_MS,
   MAX_EVENT_LOGS_PER_SESSION,
 } from "@/lib/demo-config"
+import { inferEventCategory, inferEventSource } from "@/lib/demo-helpers"
 import {
   type AdminSnapshot,
   type ExamSession,
@@ -91,6 +92,8 @@ function appendEvent(sessionId: string, eventInput: SessionEventInput) {
     id: createId("evt"),
     sessionId,
     timestamp: new Date().toISOString(),
+    source: eventInput.source ?? inferEventSource(eventInput.type),
+    category: eventInput.category ?? inferEventCategory(eventInput.type),
     ...eventInput,
   }
 
@@ -119,6 +122,15 @@ function appendEvent(sessionId: string, eventInput: SessionEventInput) {
 
   if (event.type === "browser_exit_detected") {
     session.browserExitedAt = event.timestamp
+  }
+
+  // Handle browser-native lockdown events
+  if (event.type === "browser_lockdown_active") {
+    session.isFullscreen = true
+  }
+
+  if (event.type === "browser_lockdown_released") {
+    session.isFullscreen = false
   }
 
   session.status = deriveStatus(session)
@@ -160,6 +172,8 @@ export function createSession(input: SessionStartInput) {
     type: "session_started",
     severity: "info",
     message: "Candidate started the exam session.",
+    source: "web",
+    category: "session",
   })
 
   return cloneSession(sessions.get(sessionId)!)
@@ -228,6 +242,8 @@ export function submitSession(sessionId: string) {
     type: "submit_exam",
     severity: "info",
     message: "Candidate submitted the exam.",
+    source: "web",
+    category: "session",
   })
 
   return cloneSession(sessions.get(sessionId)!)
@@ -262,6 +278,8 @@ function materializeSession(session: ExamSession) {
         severity: "info",
         message: "Browser session ended after exam submission.",
         timestamp: next.browserExitedAt,
+        source: "system",
+        category: "session",
       }
 
       session.events = [event, ...session.events].slice(0, MAX_EVENT_LOGS_PER_SESSION)

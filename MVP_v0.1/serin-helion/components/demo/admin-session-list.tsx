@@ -2,10 +2,24 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { Lock, Search, Unlock } from "lucide-react"
+import {
+  Lock,
+  Search,
+  Unlock,
+  Activity,
+  ShieldAlert,
+  MonitorSmartphone,
+  Globe,
+  AlertTriangle,
+} from "lucide-react"
 
 import { DEMO_ADMIN_PASSCODE } from "@/lib/demo-config"
-import { formatRelativeSeconds, formatTimestamp, getStatusTone } from "@/lib/demo-helpers"
+import {
+  formatRelativeSeconds,
+  formatTimestamp,
+  getStatusTone,
+  inferEventSource,
+} from "@/lib/demo-helpers"
 import { type AdminSnapshot } from "@/lib/demo-types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -67,6 +81,13 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
   }, [search, snapshot.sessions])
 
   const metrics = useMemo(() => {
+    const browserEvents = snapshot.sessions.reduce((acc, session) => {
+      return acc + session.events.filter((e) => {
+        const source = e.source ?? inferEventSource(e.type)
+        return source === "browser"
+      }).length
+    }, 0)
+
     return {
       total: snapshot.sessions.length,
       live: snapshot.sessions.filter((session) =>
@@ -78,6 +99,7 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
       completed: snapshot.sessions.filter(
         (session) => session.status === "browser_exited"
       ).length,
+      browserEvents,
     }
   }, [snapshot.sessions])
 
@@ -124,6 +146,9 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
                 type="password"
                 value={passcode}
                 onChange={(event) => setPasscode(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") handleUnlock()
+                }}
                 placeholder="Enter passcode"
                 className="h-14 rounded-none border-slate-200 border-x-0 border-t-0 border-b-2 bg-transparent px-0 focus-visible:border-primary focus-visible:ring-0 text-lg shadow-none text-slate-900"
               />
@@ -163,8 +188,9 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
           
           <div className="flex flex-wrap items-center gap-px bg-slate-200 border border-slate-200">
             <MetricChip label="Live" value={metrics.live} />
-            <MetricChip label="Flagged" value={metrics.flagged} />
+            <MetricChip label="Flagged" value={metrics.flagged} highlight={metrics.flagged > 0} />
             <MetricChip label="Completed" value={metrics.completed} />
+            <MetricChip label="Browser Events" value={metrics.browserEvents} icon={<MonitorSmartphone className="size-3 text-violet-500" />} />
             <MetricChip label="Total" value={metrics.total} />
           </div>
         </div>
@@ -198,52 +224,96 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
                   <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs">Status</TableHead>
                   <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs">Heartbeat</TableHead>
                   <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs text-center">Violations</TableHead>
+                  <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs text-center">Sources</TableHead>
+                  <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs">Latest Event</TableHead>
                   <TableHead className="h-14 font-medium text-slate-500 uppercase tracking-wider text-xs pr-6">Progress</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredSessions.length > 0 ? (
-                  filteredSessions.map((session) => (
-                    <TableRow key={session.id} className="group border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
-                      <TableCell className="pl-6 py-4">
-                        <Link
-                          href={`/admin/sessions/${session.id}`}
-                          onClick={() => cacheSessionForDetail(session)}
-                          className="flex flex-col gap-1"
-                        >
-                          <span className="font-medium text-slate-900 group-hover:text-primary transition-colors">
-                            {session.candidateName}
+                  filteredSessions.map((session) => {
+                    const browserEventCount = session.events.filter(
+                      (e) => (e.source ?? inferEventSource(e.type)) === "browser"
+                    ).length
+                    const webEventCount = session.events.filter(
+                      (e) => (e.source ?? inferEventSource(e.type)) === "web"
+                    ).length
+
+                    return (
+                      <TableRow key={session.id} className="group border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
+                        <TableCell className="pl-6 py-4">
+                          <Link
+                            href={`/admin/sessions/${session.id}`}
+                            onClick={() => cacheSessionForDetail(session)}
+                            className="flex flex-col gap-1"
+                          >
+                            <span className="font-medium text-slate-900 group-hover:text-primary transition-colors">
+                              {session.candidateName}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {session.candidateEmailOrId}
+                            </span>
+                          </Link>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <Badge variant={getStatusTone(session.status)} className="rounded-sm font-medium uppercase tracking-wider text-[10px] px-2 py-0.5">
+                            {session.status.replaceAll("_", " ")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-4 text-sm text-slate-600">
+                          {formatRelativeSeconds(session.lastHeartbeatAt)}
+                        </TableCell>
+                        <TableCell className="py-4 text-center">
+                          <span className={`inline-flex items-center justify-center size-6 rounded-full text-xs font-medium ${session.violationCount > 0 ? 'bg-red-50 text-red-700' : 'text-slate-400'}`}>
+                            {session.violationCount}
                           </span>
-                          <span className="text-xs text-slate-500">
-                            {session.candidateEmailOrId}
-                          </span>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <Badge variant={getStatusTone(session.status)} className="rounded-sm font-medium uppercase tracking-wider text-[10px] px-2 py-0.5">
-                          {session.status.replaceAll("_", " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="py-4 text-sm text-slate-600">
-                        {formatRelativeSeconds(session.lastHeartbeatAt)}
-                      </TableCell>
-                      <TableCell className="py-4 text-center">
-                        <span className={`inline-flex items-center justify-center size-6 rounded-full text-xs font-medium ${session.violationCount > 0 ? 'bg-red-50 text-red-700' : 'text-slate-400'}`}>
-                          {session.violationCount}
-                        </span>
-                      </TableCell>
-                      <TableCell className="pr-6 py-4 text-sm text-slate-600">
-                        {session.browserExitedAt
-                          ? "Browser exited"
-                          : session.submittedAt
-                            ? "Submitted"
-                            : "In progress"}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        </TableCell>
+                        <TableCell className="py-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {webEventCount > 0 && (
+                              <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 px-1.5 py-0.5 text-[10px] font-medium border border-sky-200">
+                                <Globe className="size-2.5" />
+                                {webEventCount}
+                              </span>
+                            )}
+                            {browserEventCount > 0 && (
+                              <span className="inline-flex items-center gap-1 bg-violet-50 text-violet-700 px-1.5 py-0.5 text-[10px] font-medium border border-violet-200">
+                                <MonitorSmartphone className="size-2.5" />
+                                {browserEventCount}
+                              </span>
+                            )}
+                            {webEventCount === 0 && browserEventCount === 0 && (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          {session.latestEvent ? (
+                            <div className="max-w-[200px]">
+                              <p className="text-xs text-slate-600 truncate">
+                                {session.latestEvent.message}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                {session.latestEvent.type.replaceAll("_", " ")}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="pr-6 py-4 text-sm text-slate-600">
+                          {session.browserExitedAt
+                            ? "Browser exited"
+                            : session.submittedAt
+                              ? "Submitted"
+                              : "In progress"}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-sm text-slate-500">
+                    <TableCell colSpan={7} className="h-32 text-center text-sm text-slate-500">
                       No records match your search criteria.
                     </TableCell>
                   </TableRow>
@@ -260,14 +330,21 @@ export function AdminSessionList({ initialSnapshot }: AdminSessionListProps) {
 function MetricChip({
   label,
   value,
+  highlight,
+  icon,
 }: {
   label: string
   value: number
+  highlight?: boolean
+  icon?: React.ReactNode
 }) {
   return (
     <div className="bg-white px-6 py-4 min-w-[120px]">
-      <span className="block text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-1">{label}</span>
-      <p className="text-3xl font-light text-slate-900">{value}</p>
+      <div className="flex items-center gap-1.5">
+        {icon}
+        <span className="block text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-1">{label}</span>
+      </div>
+      <p className={`text-3xl font-light ${highlight ? 'text-red-600' : 'text-slate-900'}`}>{value}</p>
     </div>
   )
 }
