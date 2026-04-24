@@ -618,6 +618,12 @@ export function CandidateExam({
     }
   }, [isSessionClosed, session])
 
+  function getSessionIdFromUrl(): string | null {
+    if (typeof window === "undefined") return null
+    const params = new URLSearchParams(window.location.search)
+    return params.get("sessionId")
+  }
+
   async function handleStartExam() {
     setError(null)
     setWarning(null)
@@ -630,12 +636,20 @@ export function CandidateExam({
     setIsStarting(true)
 
     try {
-      const payload = await postJson<{ session: ExamSession }>(
-        "/api/demo/session/start",
+      const existingSessionId = getSessionIdFromUrl()
+      const sessionIdParam = existingSessionId ? { sessionId: existingSessionId } : {}
+
+      const payload = await postJson<{
+        ok: boolean
+        sessionId: string
+        session: ExamSession
+      }>(
+        "/api/browser/session",
         {
           candidateName: candidateName.trim(),
           candidateEmailOrId: candidateEmailOrId.trim(),
           examCode,
+          ...sessionIdParam,
         }
       )
 
