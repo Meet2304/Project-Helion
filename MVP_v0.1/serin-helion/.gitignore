@@ -34,3 +34,8 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local database
+serin-helion.db
+serin-helion.db-wal
+serin-helion.db-shm
