@@ -89,6 +89,7 @@ export type SessionEvent = {
 
 export type ExamSession = {
   id: string
+  externalSessionId?: string
   candidateName: string
   candidateEmailOrId: string
   examCode: string

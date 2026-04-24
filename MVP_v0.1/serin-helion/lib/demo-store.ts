@@ -15,6 +15,7 @@ type SessionStartInput = {
   candidateName: string
   candidateEmailOrId: string
   examCode: string
+  externalSessionId?: string
 }
 
 type SessionPatch = Partial<
@@ -24,6 +25,7 @@ type SessionPatch = Partial<
 type Listener = (snapshot: AdminSnapshot) => void
 
 const sessions = new Map<string, ExamSession>()
+const externalSessionIds = new Map<string, string>()
 const listeners = new Set<Listener>()
 
 function createId(prefix: string) {
@@ -36,6 +38,29 @@ function cloneSession(session: ExamSession): ExamSession {
     latestEvent: session.latestEvent ? { ...session.latestEvent } : null,
     events: session.events.map((event) => ({ ...event })),
   }
+}
+
+function normalizeExternalSessionId(value?: string | null) {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+function resolveSessionKey(sessionId: string) {
+  if (sessions.has(sessionId)) {
+    return sessionId
+  }
+
+  return externalSessionIds.get(sessionId) ?? null
+}
+
+function getCanonicalSession(sessionId: string) {
+  const key = resolveSessionKey(sessionId)
+
+  if (!key) {
+    return null
+  }
+
+  return sessions.get(key) ?? null
 }
 
 function deriveStatus(session: ExamSession): ExamStatus {
@@ -82,7 +107,7 @@ function emit() {
 }
 
 function appendEvent(sessionId: string, eventInput: SessionEventInput) {
-  const session = sessions.get(sessionId)
+  const session = getCanonicalSession(sessionId)
 
   if (!session) {
     return null
@@ -149,9 +174,11 @@ export function getSnapshot(): AdminSnapshot {
 export function createSession(input: SessionStartInput) {
   const sessionId = createId("session")
   const now = new Date().toISOString()
+  const externalSessionId = normalizeExternalSessionId(input.externalSessionId)
 
   const session: ExamSession = {
     id: sessionId,
+    ...(externalSessionId ? { externalSessionId } : {}),
     candidateName: input.candidateName,
     candidateEmailOrId: input.candidateEmailOrId,
     examCode: input.examCode,
@@ -168,6 +195,11 @@ export function createSession(input: SessionStartInput) {
   }
 
   sessions.set(sessionId, session)
+
+  if (externalSessionId) {
+    externalSessionIds.set(externalSessionId, sessionId)
+  }
+
   appendEvent(sessionId, {
     type: "session_started",
     severity: "info",
@@ -180,7 +212,7 @@ export function createSession(input: SessionStartInput) {
 }
 
 export function getSession(sessionId: string) {
-  const session = sessions.get(sessionId)
+  const session = getCanonicalSession(sessionId)
 
   if (!session) {
     return null
@@ -190,7 +222,7 @@ export function getSession(sessionId: string) {
 }
 
 export function updateHeartbeat(sessionId: string, patch?: SessionPatch) {
-  const session = sessions.get(sessionId)
+  const session = getCanonicalSession(sessionId)
 
   if (!session) {
     return null
@@ -227,7 +259,7 @@ export function addSessionEvent(sessionId: string, eventInput: SessionEventInput
 }
 
 export function submitSession(sessionId: string) {
-  const session = sessions.get(sessionId)
+  const session = getCanonicalSession(sessionId)
 
   if (!session) {
     return null
@@ -256,6 +288,72 @@ export function subscribeToSessions(listener: Listener) {
   return () => {
     listeners.delete(listener)
   }
+}
+
+export function bindExternalSessionId(externalSessionId: string, sessionId: string) {
+  const normalizedExternalSessionId = normalizeExternalSessionId(externalSessionId)
+
+  if (!normalizedExternalSessionId) {
+    return false
+  }
+
+  const canonicalSession = getCanonicalSession(sessionId)
+
+  if (!canonicalSession) {
+    return false
+  }
+
+  canonicalSession.externalSessionId = normalizedExternalSessionId
+  externalSessionIds.set(normalizedExternalSessionId, canonicalSession.id)
+  emit()
+
+  return true
+}
+
+export function ensureTelemetrySession(input: {
+  externalSessionId?: string
+  candidateName?: string
+  candidateEmailOrId?: string
+  examCode?: string
+}) {
+  const normalizedExternalSessionId = normalizeExternalSessionId(input.externalSessionId)
+  const normalizedCandidateEmailOrId = input.candidateEmailOrId?.trim()
+  const normalizedExamCode = input.examCode?.trim()
+
+  if (normalizedExternalSessionId) {
+    const existingSession = getCanonicalSession(normalizedExternalSessionId)
+
+    if (existingSession) {
+      return cloneSession(existingSession)
+    }
+  }
+
+  if (normalizedCandidateEmailOrId && normalizedExamCode) {
+    const matchedSession = Array.from(sessions.values()).find((session) => {
+      return (
+        session.candidateEmailOrId === normalizedCandidateEmailOrId &&
+        session.examCode === normalizedExamCode
+      )
+    })
+
+    if (matchedSession) {
+      if (normalizedExternalSessionId) {
+        matchedSession.externalSessionId = normalizedExternalSessionId
+        externalSessionIds.set(normalizedExternalSessionId, matchedSession.id)
+      }
+
+      return cloneSession(matchedSession)
+    }
+  }
+
+  const session = createSession({
+    candidateName: input.candidateName?.trim() || "SEB Candidate",
+    candidateEmailOrId: normalizedCandidateEmailOrId || "SEB-UNKNOWN",
+    examCode: normalizedExamCode || "serin-helion-demo",
+    externalSessionId: normalizedExternalSessionId ?? undefined,
+  })
+
+  return session
 }
 
 function materializeSession(session: ExamSession) {

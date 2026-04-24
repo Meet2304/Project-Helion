@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { createSession } from "@/lib/demo-store"
+import { createSession, getSession } from "@/lib/demo-store"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -25,6 +25,24 @@ export async function POST(request: Request) {
       candidateName?: string
       candidateEmailOrId?: string
       examCode?: string
+      sessionId?: string
+      externalSessionId?: string
+    }
+
+    const externalSessionId =
+      body.externalSessionId?.trim() || body.sessionId?.trim() || undefined
+
+    if (externalSessionId) {
+      const existingSession = getSession(externalSessionId)
+
+      if (existingSession) {
+        return NextResponse.json({
+          ok: true,
+          sessionId: existingSession.id,
+          externalSessionId: existingSession.externalSessionId ?? externalSessionId,
+          session: existingSession,
+        })
+      }
     }
 
     if (
@@ -42,11 +60,13 @@ export async function POST(request: Request) {
       candidateName: body.candidateName.trim(),
       candidateEmailOrId: body.candidateEmailOrId.trim(),
       examCode: body.examCode,
+      externalSessionId,
     })
 
     return NextResponse.json({
       ok: true,
       sessionId: session.id,
+      externalSessionId: session.externalSessionId ?? null,
       session,
     })
   } catch {
